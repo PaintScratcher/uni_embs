@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 import openCode.Channel.states;
+import ptolemy.actor.NoRoomException;
 import ptolemy.actor.NoTokenException;
 import ptolemy.actor.TypedAtomicActor;
 import ptolemy.actor.TypedIOPort;
@@ -68,7 +69,10 @@ public class Source extends TypedAtomicActor {
 		handleSecondRX(channel, currentTime);
 		break;
 	    case FIRSTTX:
-		handleFirstTX(channel);
+		handleFirstTX(channel, currentTime);
+		break;
+	    case NCALC:
+		handleNCalc(channel, currentTime);
 		break;
 	    case SECONDTX:
 		handleSecondTX(channel);
@@ -87,7 +91,7 @@ public class Source extends TypedAtomicActor {
 	    
     	    channel.t = currentTime;
     	    channel.state = states.SECONDRX;
-    	    System.out.println("Stage 1 on channel " + currentChannel);
+    	    System.out.println("FIRSTRX on channel " + currentChannel);
 	}
 	
 	private void handleSecondRX(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
@@ -96,18 +100,32 @@ public class Source extends TypedAtomicActor {
     	    IntToken token = (IntToken) input.get(0);
     	    int currentValue = token.intValue();
     	    channel.nextFireTime = new Time(getDirector()).add(currentTime.getDoubleValue() + (channel.t.getDoubleValue() * currentValue));
-    	    System.out.println("Stage 2 on channel " + currentChannel + ". Current value is " + currentValue + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
+    	    System.out.println("SECONDRX on channel " + currentChannel + ". Current value is " + currentValue + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
     	    getDirector().fireAt(this, channel.nextFireTime);
     	    channel.state = states.FIRSTTX;    
 	}
 	
-	private void handleFirstTX(Channel channel){
-	    channel.state = states.SECONDTX;
-    	    System.out.println("Stage 3 on channel " + currentChannel);
+	private void handleFirstTX(Channel channel, Time currentTime) throws NoRoomException, IllegalActionException{
+	 	System.out.println("FIRSTTX on channel " + currentChannel + " currentTime is " + currentTime);
+	    if (input.hasToken(0)){ // There is a token on the input that we do not need
+		input.get(0);
+		return;
+	    }
+	    IntToken token = new IntToken(1);
+	    output.send(0, token);
+	    channel.state = states.NCALC;   
 	}
 	
-	private void handleSecondTX(Channel channel){
-	    
+	private void handleNCalc(Channel channel, Time currentTime){
+	    channel.state = states.SECONDTX;
+	    System.out.println("HANDLENCALC on channel " + currentChannel + " currentTime is " + currentTime);
+	}
+	
+	private void handleSecondTX(Channel channel) throws IllegalActionException{
+	    if (input.hasToken(0)){ // There is a token on the input that we do not need
+		return;
+	    }
+	    System.out.println("SECONDTX on channel " + currentChannel);
 	}
 	
 	private void setChannel(int channel) throws IllegalActionException{
