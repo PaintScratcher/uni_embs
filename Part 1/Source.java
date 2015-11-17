@@ -1,7 +1,6 @@
 package openCode;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -13,7 +12,6 @@ import ptolemy.actor.TypedAtomicActor;
 import ptolemy.actor.TypedIOPort;
 import ptolemy.actor.util.Time;
 import ptolemy.data.IntToken;
-import ptolemy.data.Token;
 import ptolemy.data.type.BaseType;
 import ptolemy.kernel.CompositeEntity;
 import ptolemy.kernel.util.IllegalActionException;
@@ -80,7 +78,7 @@ public class Source extends TypedAtomicActor {
 		    break;
 		 }
 	    }
-	    else{ // No token has been recieved so it is a manual fire
+	    else{ // No token has been received so it is a manual fire
 		Channel channel = null;
 		int desiredChannelNum = 0;
 		for (int channelNum : channelQueue){ // For each channel still in channelQueue
@@ -142,8 +140,7 @@ public class Source extends TypedAtomicActor {
     		channel.n = 1;
     		channel.t = new Time(getDirector()).add(channel.t.getDoubleValue() / 12);
     	    }
-    	    channel.nextFireTime = new Time(getDirector()).add(currentTime.getDoubleValue() + (channel.t.getDoubleValue() * currentValue));
-    	    getDirector().fireAt(this, channel.nextFireTime);
+    	    setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * currentValue));
     	    channel.state = states.FIRSTTX;
     	    System.out.println("SECONDRX on channel " + currentChannel + ". Current value is " + currentValue + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
     	    nextChannel(currentChannel, currentTime);
@@ -153,21 +150,19 @@ public class Source extends TypedAtomicActor {
 	    IntToken token = new IntToken(currentChannel);
 	    output.send(0, token);
 	    if (channel.n != null){
-		channel.nextFireTime = new Time(getDirector()).add(currentTime.getDoubleValue() + (channel.t.getDoubleValue() * 12));
+		setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * 12));
 		channel.state = states.SECONDTX;  
 	    }
 	    else{
-		channel.nextFireTime = new Time(getDirector()).add(currentTime.getDoubleValue() + (channel.t.getDoubleValue() * 11)-0.02);
+		setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * 11)-0.02);
 		channel.state = states.NCALC; 
 	    }
-	    getDirector().fireAt(this, channel.nextFireTime);
 	    System.out.println("FIRSTTX on channel " + currentChannel + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
 	}
 
 	private void handleNCalc(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	    channel.n = ((IntToken) input.get(0)).intValue();
-    	    channel.nextFireTime = new Time(getDirector()).add(currentTime.getDoubleValue() + (channel.t.getDoubleValue() * channel.n));
-    	    getDirector().fireAt(this, channel.nextFireTime);
+	    setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * channel.n));
 	    channel.state = states.SECONDTX;
 	    System.out.println("NCALC on channel " + currentChannel + " n is: " + channel.n + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
 	    nextChannel(currentChannel, currentTime);
@@ -182,12 +177,10 @@ public class Source extends TypedAtomicActor {
 	}
 	
 	private void setChannel(int channel) throws IllegalActionException{
-	    Time currentTime = getDirector().getModelTime();
-	    waitTime = currentTime;
-	    System.out.println("SETTING CHANNEL: " + channel + " at " + currentTime);
-	    Token channelToken = new IntToken(channel);
+	    waitTime = getDirector().getModelTime();;
+	    System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
 	    channelOutput.setTypeEquals(BaseType.INT);
-	    channelOutput.send(0, channelToken);
+	    channelOutput.send(0, new IntToken(channel));
 	    currentChannel = channel;
 	}
 	
@@ -198,6 +191,11 @@ public class Source extends TypedAtomicActor {
 	    nextChannel = channelQueue.peek();
 	    changeChan = true;
 	    getDirector().fireAt(this, currentTime.add(0.0000001));
+	}
+	
+	private void setNextFireTime(Channel channel, double additionalTime) throws IllegalActionException{
+	    channel.nextFireTime = new Time(getDirector()).add(additionalTime);
+    	    getDirector().fireAt(this, channel.nextFireTime);
 	}
 	
 	private void removeFromQueue(int channel){
