@@ -106,26 +106,34 @@ public class Source extends TypedAtomicActor {
 	}
 	
 	private void handleFirstTX(Channel channel, Time currentTime) throws NoRoomException, IllegalActionException{
-	 	System.out.println("FIRSTTX on channel " + currentChannel + " currentTime is " + currentTime);
+	    
 	    if (input.hasToken(0)){ // There is a token on the input that we do not need
 		input.get(0);
 		return;
 	    }
+	    System.out.println("FIRSTTX on channel " + currentChannel + " currentTime is " + currentTime);
 	    IntToken token = new IntToken(1);
 	    output.send(0, token);
 	    channel.state = states.NCALC;   
+	    setChannel(channelQueue.peek());
 	}
 	
-	private void handleNCalc(Channel channel, Time currentTime){
+	private void handleNCalc(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
+	    System.out.println("NCALC on channel " + currentChannel + " currentTime is " + currentTime);
+	    if (input.hasToken(0)){ // There is a token on the input that we do not need
+		input.get(0);
+		return;
+	    }
 	    channel.state = states.SECONDTX;
-	    System.out.println("HANDLENCALC on channel " + currentChannel + " currentTime is " + currentTime);
+	    
 	}
 	
 	private void handleSecondTX(Channel channel) throws IllegalActionException{
+	    System.out.println("SECONDTX on channel " + currentChannel);
 	    if (input.hasToken(0)){ // There is a token on the input that we do not need
+		input.get(0);
 		return;
 	    }
-	    System.out.println("SECONDTX on channel " + currentChannel);
 	}
 	
 	private void setChannel(int channel) throws IllegalActionException{
