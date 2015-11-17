@@ -9,8 +9,9 @@ public class Channel {
 	FIRSTRX, SECONDRX, FIRSTTX, NCALC, SECONDTX
     }
     
-    public int n;
+    public Integer n;
     public Time t;
     public Time nextFireTime;
     public states state = states.FIRSTRX;
+    public int firstValue;
 }
