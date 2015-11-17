@@ -1,8 +1,8 @@
 package openCode;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -21,6 +21,7 @@ import ptolemy.kernel.util.NameDuplicationException;
 
 public class Source extends TypedAtomicActor {
 	
+	// Ports
 	protected TypedIOPort input;
 	protected TypedIOPort output;
 	protected TypedIOPort channelOutput;
@@ -29,22 +30,23 @@ public class Source extends TypedAtomicActor {
 	private int nextChannel = 11;
 	private Boolean changeChan = false;
 	private Time waitTime;
-	private Queue<Integer> channelQueue;
-	private HashMap<Integer, Channel> channelStore;
+	
+	// Data structures for 
+	private Queue<Integer> channelQueue; // Queue for initially scanning through channels
+	private HashMap<Integer, Channel> channelStore; // Stores the channel information 
 	
 	public Source(CompositeEntity container, String name) throws NameDuplicationException, IllegalActionException  {
-
 		super(container, name);
-		input = new TypedIOPort(this, "input", true, false);
-		output = new TypedIOPort(this, "output", false, true);
-		channelOutput = new TypedIOPort(this, "channelOutput", false, true);
+		input = new TypedIOPort(this, "input", true, false); // Wireless tokens are received on this port
+		output = new TypedIOPort(this, "output", false, true); // Wireless tokens are sent via this port
+		channelOutput = new TypedIOPort(this, "channelOutput", false, true); // Changes to the wireless channel are sent via this port
 	}
 	
-	public void initialize() throws IllegalActionException {
+	public void initialize() throws IllegalActionException { // Runs when the simulation is started, create all the required data structures
 	    channelStore = new HashMap<Integer, Channel>(); // Stores channel information
 	    channelQueue = new LinkedList<Integer>(Arrays.asList(11, 12, 13, 14, 15)); // Keeps track of which channels are left to send to
 
-	    for (int channelNum : channelQueue){
+	    for (int channelNum : channelQueue){ // Initialise the channel store by creating a channel object for each element in channelQueue
 		Channel channel = new Channel();
 		channelStore.put(channelNum, channel);
 	    }
