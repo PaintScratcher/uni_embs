@@ -6,7 +6,7 @@ import ptolemy.actor.util.Time;
 public class Channel {
     
     public enum states{
-	FIRSTRX, SECONDRX, FIRSTTX, NCALC, SECONDTX
+	FIRSTRX, SECONDRX, FIRSTTX, NCALC, SECONDTX, FINISHED
     }
     
     public Integer n;

@@ -81,9 +81,9 @@ public class Source extends TypedAtomicActor {
 	else{ // No token has been received so it is a fire initiated by the source and not a token on the input
 	    Channel channel = null; // Initialise a channel to be used later
 	    int desiredChannelNum = currentChannel; // Initialise a variable to store the channel required for this firing 
-	    for (int channelNum : channelQueue){ // We need to find the channel that has caused the actor to be fired in this time period
+	    for (int channelNum: channelStore.keySet()){ // We need to find the channel that has caused the actor to be fired in this time period
 		channel = channelStore.get(channelNum); // Retrieve the information for the channel being checked
-		if (channel.nextFireTime != null){ // If we have a valid firing time, that has been initialised
+		if (channel.nextFireTime != null && channel.state != states.FINISHED){ // If we have a valid firing time, that has been initialised
 		    if (!channel.nextFireTime.equals(currentTime)){ // We are on an incorrect channel, continue searching
 			continue;
 		    }
@@ -94,7 +94,7 @@ public class Source extends TypedAtomicActor {
 		}
 	    }
 	    if (currentChannel == desiredChannelNum){  // If we are on the channel that we desire
-		if(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue()){ // If we are not too early for the firing time
+		if(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue()+ 0.1){ // If we are not too early for the firing time
 		    switch(channel.state){ // Determine what stage of the system we are at
 		    case FIRSTTX: // Stage 3, we are in the receive period for the channels sink so we can transmit a packet
 			handleFirstTX(channel, currentTime);
@@ -110,7 +110,7 @@ public class Source extends TypedAtomicActor {
 		}
 	    }
 	    else if (desiredChannelNum != 0){ // We are not on the desired channel, so we have to change to it
-		System.out.println(currentChannel + " : " + desiredChannelNum);
+//		System.out.println(currentChannel + " : " + desiredChannelNum);
 		nextChannel = currentChannel; // Set the channel we will change back to after the transmit to our current channel
 		setChannel(desiredChannelNum); // Set the channel to the desired channel
 		channel.nextFireTime = currentTime.add(0.0000001); // Set the channels fire time to when we are firing it so we can detect which channel fired
@@ -169,12 +169,12 @@ public class Source extends TypedAtomicActor {
 
     private void handleNCalc(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	// Method to handle the fourth stage, where we listen to the first synchronisation pulse to find the value of n
-	if(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue()){
+	if(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue()){
 	    input.get(0);
 	    return;
 	}
 	if (channel.secondRun){ // If we are on the second run through, we have already transmitted twice so we can stop here
-	    removeFromQueue(currentChannel);
+	    	channel.state = states.FINISHED;
 	    return;
 	}
 	if (currentTime.subtract(channel.nextFireTime).getDoubleValue() > 2){ // There is a large delta between when we were supposed to fire and when we fired, so we probably have a collision with another channel
@@ -189,28 +189,27 @@ public class Source extends TypedAtomicActor {
 	    System.out.println("NCALC on channel " + currentChannel + " n is: " + channel.n + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
 	}
 	nextChannel(currentChannel, currentTime);
+	removeFromQueue(currentChannel);
     }
 
     private void handleSecondTX(Channel channel, Time currentTime) throws IllegalActionException{
-	System.out.println(currentChannel + ":" + channel.nextFireTime);
 	IntToken token = new IntToken(currentChannel);
 	output.send(0, token);
-	removeFromQueue(currentChannel);
+	channel.state = states.FINISHED;
 	System.out.println("SECONDTX on channel " + currentChannel + ". t is " + channel.t + " currentTime is " + currentTime);
 	System.out.println(channelQueue.toString());
     }
 
     private void setChannel(int channel) throws IllegalActionException{
-	System.out.println("SIZE:" + channelQueue.size());
 	waitTime = getDirector().getModelTime();
-	System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
+	//System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
 	channelOutput.setTypeEquals(BaseType.INT);
 	channelOutput.send(0, new IntToken(channel));
 	currentChannel = channel;
     }
 
     private void nextChannel(int currentChannel, Time currentTime) throws IllegalActionException{
-	System.out.println("NEXT CHANNEL at" + currentTime);
+	//System.out.println("NEXT CHANNEL at" + currentTime);
 	removeFromQueue(currentChannel);
 	channelQueue.add(currentChannel);
 	nextChannel = channelQueue.peek();
@@ -219,7 +218,6 @@ public class Source extends TypedAtomicActor {
     }
 
     private void setNextFireTime(Channel channel, double additionalTime) throws IllegalActionException{
-	System.out.println("setNextFireTime");
 	channel.nextFireTime = new Time(getDirector()).add(additionalTime + (currentChannel / 100.0));
 	getDirector().fireAt(this, channel.nextFireTime);
     }
