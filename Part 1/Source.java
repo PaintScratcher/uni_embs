@@ -94,7 +94,8 @@ public class Source extends TypedAtomicActor {
 		}
 	    }
 	    if (currentChannel == desiredChannelNum){  // If we are on the channel that we desire
-		if(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue()+ 0.1){ // If we are not too early for the firing time
+		System.out.println(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue() + 0.4);
+		if(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue() + 0.4){ // If we are not too early for the firing time
 		    switch(channel.state){ // Determine what stage of the system we are at
 		    case FIRSTTX: // Stage 3, we are in the receive period for the channels sink so we can transmit a packet
 			handleFirstTX(channel, currentTime);
@@ -169,27 +170,29 @@ public class Source extends TypedAtomicActor {
 
     private void handleNCalc(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	// Method to handle the fourth stage, where we listen to the first synchronisation pulse to find the value of n
-	if(channel.nextFireTime.getDoubleValue() <= currentTime.getDoubleValue()){
+	System.out.println(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue() + 0.4);
+	if(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue()){
 	    input.get(0);
 	    return;
 	}
-	if (channel.secondRun){ // If we are on the second run through, we have already transmitted twice so we can stop here
+	else if (channel.secondRun){ // If we are on the second run through, we have already transmitted twice so we can stop here
 	    	channel.state = states.FINISHED;
 	    return;
 	}
-	if (currentTime.subtract(channel.nextFireTime).getDoubleValue() > 2){ // There is a large delta between when we were supposed to fire and when we fired, so we probably have a collision with another channel
+	else if (currentTime.subtract(channel.nextFireTime).getDoubleValue() > 2){ // There is a large delta between when we were supposed to fire and when we fired, so we probably have a collision with another channel
 	    channel.secondRun = true; // Store that we will need to go around again for this channel
 	    channel.state = states.FIRSTRX; // Set the stage back to the beginning so we can restart
 	    System.out.println("NCALC on channel " + currentChannel + " n is: " + channel.n + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
+	    nextChannel(currentChannel, currentTime);
 	}
 	else{
 	    channel.n = ((IntToken) input.get(0)).intValue();
 	    setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * channel.n));
 	    channel.state = states.SECONDTX;
 	    System.out.println("NCALC on channel " + currentChannel + " n is: " + channel.n + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
+	    nextChannel(currentChannel, currentTime);
+	    removeFromQueue(currentChannel);
 	}
-	nextChannel(currentChannel, currentTime);
-	removeFromQueue(currentChannel);
     }
 
     private void handleSecondTX(Channel channel, Time currentTime) throws IllegalActionException{
@@ -202,14 +205,14 @@ public class Source extends TypedAtomicActor {
 
     private void setChannel(int channel) throws IllegalActionException{
 	waitTime = getDirector().getModelTime();
-	//System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
+	System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
 	channelOutput.setTypeEquals(BaseType.INT);
 	channelOutput.send(0, new IntToken(channel));
 	currentChannel = channel;
     }
 
     private void nextChannel(int currentChannel, Time currentTime) throws IllegalActionException{
-	//System.out.println("NEXT CHANNEL at" + currentTime);
+	System.out.println("NEXT CHANNEL at" + currentTime);
 	removeFromQueue(currentChannel);
 	channelQueue.add(currentChannel);
 	nextChannel = channelQueue.peek();
