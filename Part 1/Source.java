@@ -48,7 +48,7 @@ public class Source extends TypedAtomicActor {
 		Channel channel = new Channel();
 		channelStore.put(channelNum, channel);
 	    }
-	    setChannel(channelQueue.peek());
+	    setChannel(channelQueue.peek()); // Set the initial channel to listen on
 	}
 	
 	public void fire() throws IllegalActionException{
@@ -94,12 +94,6 @@ public class Source extends TypedAtomicActor {
 		    }
 		}
 		if (currentChannel == desiredChannelNum){ 
-		    if(currentChannel == 13){
-			System.out.println("...");
-		    }
-		    System.out.println("COMPARE" + channel.nextFireTime.compareTo(currentTime));
-		    System.out.println(currentTime.getDoubleValue());
-		    System.out.println(channel.nextFireTime.getDoubleValue());
 		    if(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue()){
 			switch(channel.state){ // Main logic, determine what stage of the system we are at
 			    case FIRSTTX:
@@ -114,19 +108,16 @@ public class Source extends TypedAtomicActor {
 				changeChan = true;
 				getDirector().fireAt(this, currentTime.add(0.000001));
 				break;
-			    }
+			}
 		    }
 		}
-		else{
-		    if (desiredChannelNum == 0){
-			System.out.println("Time at desiredChannelNum" + currentTime);
-		    }
-		    if (channelQueue.size() != 1){
-			nextChannel = currentChannel;
-			setChannel(desiredChannelNum);
-			channel.nextFireTime = currentTime.add(0.0000001);
-			getDirector().fireAt(this, currentTime.add(0.0000001));
-		    }
+		else if (desiredChannelNum != 0){
+		    System.out.println(currentChannel + " : " + desiredChannelNum);
+		    System.out.println("HERE");
+		    nextChannel = currentChannel;
+		    setChannel(desiredChannelNum);
+		    channel.nextFireTime = currentTime.add(0.0000001);
+		    getDirector().fireAt(this, currentTime.add(0.0000001));
 		}   
 	    }
 	}
@@ -192,6 +183,7 @@ public class Source extends TypedAtomicActor {
 		setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * channel.n));
 		channel.state = states.SECONDTX;
 		System.out.println("NCALC on channel " + currentChannel + " n is: " + channel.n + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
+		System.out.println(channelQueue.size());
 		nextChannel(currentChannel, currentTime);
 	    }
 	}
@@ -205,10 +197,6 @@ public class Source extends TypedAtomicActor {
 	}
 	
 	private void setChannel(int channel) throws IllegalActionException{
-//	    if (channel == 0){
-//		System.out.println("0 CHANNEL");
-//		return;
-//	    }
 	    waitTime = getDirector().getModelTime();
 	    System.out.println("SETTING CHANNEL: " + channel + " at " + waitTime);
 	    channelOutput.setTypeEquals(BaseType.INT);
@@ -217,10 +205,6 @@ public class Source extends TypedAtomicActor {
 	}
 	
 	private void nextChannel(int currentChannel, Time currentTime) throws IllegalActionException{
-	    if (channelQueue.size() == 1){
-		System.out.println("SIZE = 1");
-		return;
-	    }
 	    System.out.println("NEXT CHANNEL at" + currentTime);
 	    removeFromQueue(currentChannel);
 	    channelQueue.add(currentChannel);
