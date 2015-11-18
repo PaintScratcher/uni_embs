@@ -14,4 +14,5 @@ public class Channel {
     public Time nextFireTime;
     public states state = states.FIRSTRX;
     public int firstValue;
+    public Boolean secondRun = false;
 }
