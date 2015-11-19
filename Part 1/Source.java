@@ -150,7 +150,8 @@ public class Source extends TypedAtomicActor {
 	setNextFireTime(channel, currentTime.getDoubleValue() + (channel.t.getDoubleValue() * currentValue)); // Manually set the next fire time for this channel
 	channel.state = states.FIRSTTX; // Set the channel state to the next stage
 	System.out.println("SECONDRX on channel " + currentChannel + ". Current value is " + currentValue + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
-	nextChannel(currentChannel, currentTime); // We can now move onto listening on the next channel
+	nextChannel(currentChannel, currentTime);
+	removeFromQueue(currentChannel); // We can now move onto listening on the next channel
     }
 
     private void handleFirstTX(Channel channel, Time currentTime) throws NoRoomException, IllegalActionException{
