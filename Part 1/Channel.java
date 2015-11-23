@@ -9,6 +9,7 @@ public class Channel {
 	FIRSTRX, SECONDRX, FIRSTTX, NCALC, SECONDTX, FINISHED
     }
     
+    public Integer channel;
     public Integer n;
     public Time t;
     public Time nextFireTime;
