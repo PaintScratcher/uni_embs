@@ -179,27 +179,35 @@ public class SourceNew extends TypedAtomicActor {
     }
 
     public Channel findChannel(Time currentTime) throws IllegalActionException{
+	ArrayList<Channel> channelArray = new ArrayList<Channel>();
 	for (Channel channel: channelStore){ // We need to find the channel that has caused the actor to be fired in this time period
 	    if (channel.nextFireTime != null && channel.state != states.FINISHED){ // If we have a valid firing time, that has been initialised
 		if (!channel.nextFireTime.equals(currentTime)){ // We are on an incorrect channel, continue searching
 		    continue;
 		}
 		else{ // We have found the correct channel
-		    if (currentChannel == channel.channel){  // If we are on the channel that we desire
-			if (channel.state == states.NCALC){
-			    nCalcChannel = channel;
-			}
-			System.out.println("Found channel: " + channel.channel);
-			return channel;
-		    }
-		    else { // We are not on the desired channel, so we have to change to it
-			//				System.out.println(currentChannel + " : " + desiredChannelNum);
-			setChannel(channel.channel); // Set the channel to the desired channel
-			channel.nextFireTime = currentTime.add(0.0000001); // Set the channels fire time to when we are firing it so we can detect which channel fired
-			getDirector().fireAt(this, currentTime.add(0.0000001)); // Fire the actor again so we can process the transmit
-		    }   
+		    channelArray.add(channel);
 		}
 	    }
+	}
+	if (channelArray.size() == 1){
+	    Channel channel = channelArray.get(0);
+	    if (currentChannel == channel.channel){  // If we are on the channel that we desire
+		if (channel.state == states.NCALC){
+		    nCalcChannel = channel;
+		}
+		System.out.println("Found channel: " + channel.channel);
+		return channel;
+	    }
+	    else { // We are not on the desired channel, so we have to change to it
+		//				System.out.println(currentChannel + " : " + desiredChannelNum);
+		setChannel(channel.channel); // Set the channel to the desired channel
+		channel.nextFireTime = currentTime.add(0.0000001); // Set the channels fire time to when we are firing it so we can detect which channel fired
+		getDirector().fireAt(this, currentTime.add(0.0000001)); // Fire the actor again so we can process the transmit
+	    }   
+	}
+	else{
+	    System.out.println("COLLISION");
 	}
 	return null;
     }
