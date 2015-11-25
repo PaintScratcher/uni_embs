@@ -97,7 +97,7 @@ public class Source {
 		Logger.flush(Mote.WARN);
 		sink.t = time - sink.t;
 		sink.state = 2;
-		setTimer(channel, sink.t * data[DATA_INDEX]);
+		setTimer(channel, (sink.t * data[DATA_INDEX]));
 		break;
 	    case 3:
 		Logger.appendString(csr.s2b("NCalc on channel: "));
@@ -115,9 +115,9 @@ public class Source {
     }
     
     private static void handleAlarmCallaback(byte param, long time){
-	Logger.appendString(csr.s2b("Alarm Callback on Channel: "));
-	Logger.appendByte(param);
-	Logger.flush(Mote.WARN);
+//	Logger.appendString(csr.s2b("Alarm Callback on Channel: "));
+//	Logger.appendByte(param);
+//	Logger.flush(Mote.WARN);
 	returnChannel = radio.getChannel();
 	setChannel(param);
 	SinkData sink = sinkStore[param];
@@ -135,10 +135,10 @@ public class Source {
 	transmitByte = new byte[16];
 	transmitByte[0] = Radio.FCF_BEACON;
 	transmitByte[1] = Radio.FCA_SRC_SADDR | Radio.FCA_DST_SADDR;
-	Util.set16le(transmitByte, 3, PAN);
+	Util.set16le(transmitByte, 3, PAN); // Source PAN
 	Util.set16le(transmitByte, 5, 0xFFFF); // Broadcast
-	Util.set16le(transmitByte, 7, PAN);
-	Util.set16le(transmitByte, 9, SHORT_ADDR);
+	Util.set16le(transmitByte, 7, PAN); // Own PAN
+	Util.set16le(transmitByte, 9, 0x15); // Own Short Address
 	
 	Logger.appendString(csr.s2b("Transmitting on channel: "));
 	Logger.appendByte(param);
