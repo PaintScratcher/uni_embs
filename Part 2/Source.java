@@ -5,6 +5,7 @@ import com.ibm.saguaro.system.DevCallback;
 import com.ibm.saguaro.system.Device;
 import com.ibm.saguaro.system.Mote;
 import com.ibm.saguaro.system.Radio;
+import com.ibm.saguaro.system.Time;
 import com.ibm.saguaro.system.Timer;
 import com.ibm.saguaro.system.TimerEvent;
 import com.ibm.saguaro.system.Util;
@@ -16,6 +17,7 @@ public class Source {
     private static Timer sink2Tmr;   
 
     private static int DATA_INDEX = 11;
+    private static final long TIME_OFFSET = 50;
     
     static Radio radio = new Radio();
     
@@ -24,6 +26,7 @@ public class Source {
     private static byte PAN;
     private static byte SHORT_ADDR;
     private static byte returnChannel;
+
     
     static {
         for(int i = 0; i < 3; i++){
@@ -62,8 +65,8 @@ public class Source {
     }
 
     private static void startSequence(byte channel){
+	returnChannel = channel;
 	setChannel(channel);
-	radio.startRx(Device.ASAP | Device.RX4EVER, 0, 0);
     }
     
     private  static int handleRX(int flags, byte[] data, int len, int info, long time){
@@ -72,11 +75,6 @@ public class Source {
 	}
 
 	byte channel = radio.getChannel();
-//	Logger.appendString(csr.s2b("RECIEVED: "));
-//	Logger.appendByte(data[11]);
-//	Logger.appendString(csr.s2b(" on Channel: "));
-//	Logger.appendByte(channel);
-//	Logger.flush(Mote.WARN);
 	SinkData sink = sinkStore[channel];
 	switch(sink.state){
 	    case 0:
@@ -95,9 +93,19 @@ public class Source {
 		Logger.appendString(csr.s2b(" Recieved: "));
 		Logger.appendByte(data[11]);
 		Logger.flush(Mote.WARN);
-		sink.t = time - sink.t;
+		if (data[11] >= sink.firstRecieve){
+		    sink.state = 1;
+		    return 0;
+		}
+		sink.t = (time - sink.t) / (sink.firstRecieve - data[11]);
 		sink.state = 2;
-		setTimer(channel, (sink.t * data[DATA_INDEX]));
+		setTimer(channel, (sink.t * data[DATA_INDEX]) + Time.toTickSpan(Time.MILLISECS, TIME_OFFSET));
+		if (channel == 0){
+		    startSequence((byte)1);
+		}
+		else if (channel == 1){
+		    startSequence((byte)2);
+		}
 		break;
 	    case 3:
 		Logger.appendString(csr.s2b("NCalc on channel: "));
@@ -106,7 +114,7 @@ public class Source {
 		Logger.appendByte(data[11]);
 		Logger.flush(Mote.WARN);
 		sink.n = data[DATA_INDEX];
-		setTimer(channel, sink.t * sink.n);
+		setTimer(channel, (sink.t * sink.n) + Time.toTickSpan(Time.MILLISECS, TIME_OFFSET));
 		sink.state = 4;
 		setChannel(returnChannel);
 		break;
@@ -118,7 +126,7 @@ public class Source {
 //	Logger.appendString(csr.s2b("Alarm Callback on Channel: "));
 //	Logger.appendByte(param);
 //	Logger.flush(Mote.WARN);
-	returnChannel = radio.getChannel();
+	//returnChannel = radio.getChannel();
 	setChannel(param);
 	SinkData sink = sinkStore[param];
 	if (sink.state != 3){
@@ -138,19 +146,23 @@ public class Source {
 	Util.set16le(transmitByte, 3, PAN); // Source PAN
 	Util.set16le(transmitByte, 5, 0xFFFF); // Broadcast
 	Util.set16le(transmitByte, 7, PAN); // Own PAN
-	Util.set16le(transmitByte, 9, 0x15); // Own Short Address
+	Util.set16le(transmitByte, 9, SHORT_ADDR); // Own Short Address
+	transmitByte[11] = param;
 	
+	if (radio.getState() == Device.S_RXEN){
+	    radio.stopRx();
+	}
 	Logger.appendString(csr.s2b("Transmitting on channel: "));
 	Logger.appendByte(param);
 	Logger.flush(Mote.WARN);
 	radio.transmit(Device.ASAP|Radio.TXMODE_CCA, transmitByte, 0, 16, 0);
 	
 	if (sink.state == 2){
-	    setTimer(param,(sink.t * 11));
+	    setTimer(param,(sink.t * 10));
 	    sink.state = 3;
 	}
 	else if (sink.state == 4){
-	    setTimer(param, (sink.t * 10) + (sink.t * sink.n));
+	    setTimer(param, (sink.t * 11) + (sink.t * sink.n) + Time.toTickSpan(Time.MILLISECS, TIME_OFFSET));
 	}
 	setChannel(returnChannel);
     }
@@ -175,6 +187,7 @@ public class Source {
 	}
     }
     private static void setChannel(byte channel){
+
 	Logger.appendString(csr.s2b("Setting Channel: "));
 	Logger.appendByte(channel);
 	Logger.flush(Mote.WARN);
@@ -182,24 +195,26 @@ public class Source {
 	    radio.stopRx();
 	}
 	switch(channel){
-	    case 0:
-		PAN = 0x11;
-		SHORT_ADDR = 0x11;
-		break;
-	    case 1:
-		PAN = 0x12;
-		SHORT_ADDR = 0x12;
-		break;
-	    case 2:
-		PAN = 0x13;
-		SHORT_ADDR = 0x12;
-		break;
+	case 0:
+	    PAN = 0x11;
+	    SHORT_ADDR = 0x11;
+	    break;
+	case 1:
+	    PAN = 0x12;
+	    SHORT_ADDR = 0x12;
+	    break;
+	case 2:
+	    PAN = 0x13;
+	    SHORT_ADDR = 0x12;
+	    break;
 	}
 	radio.setChannel(channel);
 	radio.setPanId(PAN, true);
-    }
-    
-    private static void nextChannel(){
-	return;
+	if (channel <= 2){
+	    radio.startRx(Device.ASAP | Device.RX4EVER, 0, 0);
+	}
+	else{
+	    //Sleep
+	}
     }
 } 

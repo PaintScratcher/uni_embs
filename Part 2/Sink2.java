@@ -3,7 +3,7 @@ package embs;
 import com.ibm.saguaro.system.*;
 import com.ibm.saguaro.logger.*;
 
-public class Sink {
+public class Sink2 {
 
     private static Timer  tsend;
     private static Timer  tstart;
@@ -12,15 +12,15 @@ public class Sink {
     private static byte[] xmit;
     private static long   wait;
     static Radio radio = new Radio();
-    private static int n = 8; // number of beacons of sync phase - sample only, assessment will use unknown values
+    private static int n = 5; // number of beacons of sync phase - sample only, assessment will use unknown values
     private static int nc;
     
-    private static int t = 600; // milliseconds between beacons - sample only, assessment will use unknown values 
+    private static int t = 400; // milliseconds between beacons - sample only, assessment will use unknown values 
     
     // settings for sink A
-    private static byte channel = 0; // channel 11
-    private static byte panid = 0x11;
-    private static byte address = 0x11;
+    private static byte channel = 1; // channel 11
+    private static byte panid = 0x12;
+    private static byte address = 0x12;
 
     static {
         // Open the default radio
@@ -50,7 +50,7 @@ public class Sink {
 		// register delegate for received frames
         radio.setRxHandler(new DevCallback(null){
                 public int invoke (int flags, byte[] data, int len, int info, long time) {
-                    return  Sink.onReceive(flags, data, len, info, time);
+                    return  Sink2.onReceive(flags, data, len, info, time);
                 }
             });
 
@@ -60,7 +60,7 @@ public class Sink {
         tsend = new Timer();
         tsend.setCallback(new TimerEvent(null){
                 public void invoke(byte param, long time){
-                    Sink.periodicSend(param, time);
+                    Sink2.periodicSend(param, time);
                 }
             });
             
@@ -71,7 +71,7 @@ public class Sink {
         tstart = new Timer();
         tstart.setCallback(new TimerEvent(null){
                 public void invoke(byte param, long time){
-                    Sink.restart(param, time);
+                    Sink2.restart(param, time);
                 }
             });
 
@@ -129,8 +129,6 @@ public class Sink {
         }
         else{
         	//start reception phase
-            Logger.appendString(csr.s2b("Starting Recieve Period"));
-            	Logger.flush(Mote.WARN);
 	        radio.startRx(Device.ASAP, 0, Time.currentTicks()+wait);
 	        // turn green LED on 
 	        LED.setState((byte)1, (byte)1);
