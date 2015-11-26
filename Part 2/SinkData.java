@@ -10,6 +10,7 @@ public class SinkData {
 
     protected int state = 0;
     protected byte firstRecieve;
+    protected long NCalcFireTime;
     protected long t;
     protected int n;
 }
