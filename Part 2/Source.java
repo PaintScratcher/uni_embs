@@ -18,7 +18,7 @@ public class Source {
     private static Timer sink2Tmr;   
 
     private static int DATA_INDEX = 11;
-    private static long TIME_OFFSET = 50;
+    private static long TIME_OFFSET = 10;
 
     static Radio radio = new Radio();
 
@@ -203,7 +203,7 @@ public class Source {
 	    break;
 	case 0x13:
 	case 2:
-	    sink1Tmr.setAlarmBySpan(time);
+	    sink2Tmr.setAlarmBySpan(time);
 	    break;
 	}
     }
