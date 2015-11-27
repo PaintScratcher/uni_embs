@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
 
-import openCode.Channel.states;
+import openCode.SinkData.states;
 import ptolemy.actor.NoRoomException;
 import ptolemy.actor.NoTokenException;
 import ptolemy.actor.TypedAtomicActor;
@@ -31,7 +31,7 @@ public class Source extends TypedAtomicActor {
 
     // Data structures for 
     private Queue<Integer> channelQueue; // Queue for initially scanning through channels
-    private HashMap<Integer, Channel> channelStore; // Stores the channel information 
+    private HashMap<Integer, SinkData> channelStore; // Stores the channel information 
 
     public Source(CompositeEntity container, String name) throws NameDuplicationException, IllegalActionException  {
 	super(container, name);
@@ -41,11 +41,11 @@ public class Source extends TypedAtomicActor {
     }
 
     public void initialize() throws IllegalActionException { // Runs when the simulation is started, create all the required data structures
-	channelStore = new HashMap<Integer, Channel>(); // Stores channel information
+	channelStore = new HashMap<Integer, SinkData>(); // Stores channel information
 	channelQueue = new LinkedList<Integer>(Arrays.asList(11, 12, 13, 14, 15)); // Keeps track of which channels are left to send to
 
 	for (int channelNum : channelQueue){ // Initialise the channel store by creating a channel object for each element in channelQueue
-	    Channel channel = new Channel();
+	    SinkData channel = new SinkData();
 	    channelStore.put(channelNum, channel);
 	}
 	setChannel(channelQueue.peek()); // Set the initial channel to listen on
@@ -62,7 +62,7 @@ public class Source extends TypedAtomicActor {
 	    }
 	}
 	else if (input.hasToken(0)){ // Wireless token has been received f
-	    Channel channel = channelStore.get(currentChannel); // Retrieve the information for the current channel
+	    SinkData channel = channelStore.get(currentChannel); // Retrieve the information for the current channel
 	    switch(channel.state){ // Determine what stage of the system we are at
 	    case FIRSTRX: // Stage one, we will be receiving the first synchronisation packet
 		handleFirstRX(channel, currentTime);
@@ -79,7 +79,7 @@ public class Source extends TypedAtomicActor {
 	    }
 	}
 	else{ // No token has been received so it is a fire initiated by the source and not a token on the input
-	    Channel channel = null; // Initialise a channel to be used later
+	    SinkData channel = null; // Initialise a channel to be used later
 	    int desiredChannelNum = currentChannel; // Initialise a variable to store the channel required for this firing 
 	    for (int channelNum: channelStore.keySet()){ // We need to find the channel that has caused the actor to be fired in this time period
 		channel = channelStore.get(channelNum); // Retrieve the information for the channel being checked
@@ -120,7 +120,7 @@ public class Source extends TypedAtomicActor {
 	}
     }
 
-    private void handleFirstRX(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
+    private void handleFirstRX(SinkData channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	// Method to handle the first stage, receiving the first synchronisation pulse
 	IntToken token = (IntToken)input.get(0); // Retrieve the token from the input
 	Time timeDelta = currentTime.subtract(waitTime); // Calculate a delta between the current time and when the channel was changed, to find the waiting time
@@ -137,7 +137,7 @@ public class Source extends TypedAtomicActor {
 	System.out.println("FIRSTRX on channel " + currentChannel + " currentTime is " + currentTime);
     }
 
-    private void handleSecondRX(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
+    private void handleSecondRX(SinkData channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	// Method to handle the second stage, receiving the second synchronisation pulse
 	if (!channel.secondRun){ // If this is the second time we have received packets on the channel we already have t so no need to calculate it
 	    channel.t = currentTime.subtract(channel.t);
@@ -154,7 +154,7 @@ public class Source extends TypedAtomicActor {
 	removeFromQueue(currentChannel); // We can now move onto listening on the next channel
     }
 
-    private void handleFirstTX(Channel channel, Time currentTime) throws NoRoomException, IllegalActionException{
+    private void handleFirstTX(SinkData channel, Time currentTime) throws NoRoomException, IllegalActionException{
 	// Method to handle the third stage, transmitting the first packet to a sink
 	IntToken token = new IntToken(currentChannel); // Create a token to send
 	output.send(0, token); // Send the token
@@ -169,7 +169,7 @@ public class Source extends TypedAtomicActor {
 	System.out.println("FIRSTTX on channel " + currentChannel + ". t is " + channel.t + ". nextFireTime is " + channel.nextFireTime + " currentTime is " + currentTime);
     }
 
-    private void handleNCalc(Channel channel, Time currentTime) throws NoTokenException, IllegalActionException{
+    private void handleNCalc(SinkData channel, Time currentTime) throws NoTokenException, IllegalActionException{
 	// Method to handle the fourth stage, where we listen to the first synchronisation pulse to find the value of n
 	System.out.println(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue() + 0.4);
 	if(channel.nextFireTime.getDoubleValue() >= currentTime.getDoubleValue()){
@@ -196,7 +196,7 @@ public class Source extends TypedAtomicActor {
 	}
     }
 
-    private void handleSecondTX(Channel channel, Time currentTime) throws IllegalActionException{
+    private void handleSecondTX(SinkData channel, Time currentTime) throws IllegalActionException{
 	IntToken token = new IntToken(currentChannel);
 	output.send(0, token);
 	channel.state = states.FINISHED;
@@ -221,7 +221,7 @@ public class Source extends TypedAtomicActor {
 	getDirector().fireAt(this, currentTime.add(0.0000001));
     }
 
-    private void setNextFireTime(Channel channel, double additionalTime) throws IllegalActionException{
+    private void setNextFireTime(SinkData channel, double additionalTime) throws IllegalActionException{
 	channel.nextFireTime = new Time(getDirector()).add(additionalTime + (currentChannel / 100.0));
 	getDirector().fireAt(this, channel.nextFireTime);
     }
