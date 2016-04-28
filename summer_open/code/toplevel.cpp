@@ -10,7 +10,23 @@ Node storageGrid[60][60];
 Wall walls[12];
 int8 waypoints[12][2];
 //Prototypes
+void checkAndUpdateNode(int8 X, int8 Y, int12 cost){
+	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
+		if(storageGrid[X][Y].listMembership != 2){
+			if(storageGrid[X][Y].listMembership != 1){
+				storageGrid[X][Y].listMembership = 1;
+				storageGrid[X][Y].cost = cost + 1;
+			}
+			else if(storageGrid[X][Y].cost > cost + 1){
+				storageGrid[X][Y].cost = cost + 1;
+			}
+		}
+	}
+}
 
+int12 manhattanDistance(int8 X1, int8 Y1, int8 X2, int8 Y2){
+	return (abs(X1 - X2) + abs(Y1 - Y2));
+}
 //Top-level function
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 #pragma HLS RESOURCE variable=input core=AXI4Stream
@@ -22,36 +38,46 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	worldSize = input.read();
 	numberOfWalls = input.read();
 	numberOfWaypoints = input.read();
-	wallReadLoop:	for(int wall = 0; wall < numberOfWalls; wall++) {
+	wallReadLoop:	for(int wallLoopCount = 0; wallLoopCount < numberOfWalls; wallLoopCount++) {
 		receiveBuffer = input.read();
-		if(receiveBuffer[2] == 0){
-			for(int i = 0; i < receiveBuffer[3]; i++){
-				storageGrid[(int)receiveBuffer[0] + i][(int)receiveBuffer[1]].isWall = 1;
+		int8 wall[4];
+		wall[0] = (int8) (receiveBuffer >> 24);
+		wall[1] = (int8) (receiveBuffer >> 16);
+		wall[2] = (int8) (receiveBuffer >> 8);
+		wall[3] = (int8) receiveBuffer;
+		if(wall[2] == 0){
+			for(int i = 0; i < wall[3]; i++){
+				storageGrid[wall[0] + i][wall[1]].isWall = 1;
 			}
 		}
 		else{
-			for(int i = 0; i < receiveBuffer[3]; i++){
-				storageGrid[(int)receiveBuffer[0]][(int)receiveBuffer[1] + i].isWall = 1;
+			for(int i = 0; i < wall[3]; i++){
+				storageGrid[wall[0]][wall[1] + i].isWall = 1;
 			}
 		}
 	}
 
 	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
 		receiveBuffer = input.read();
-		waypoints[i][0] = receiveBuffer[0];
-		waypoints[i][1] = receiveBuffer[1];
+		waypoints[i][0] = (int8) (receiveBuffer >> 8);
+		waypoints[i][1] = (int8) receiveBuffer;
 	}
 
 	numberOfWaypointsLoop: for(int waypoint = 0; waypoint < numberOfWaypoints; waypoint++) {
 		for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
 			if(waypoint == destinationWaypoint)continue;
-
+			for(int i =0; i < 60; i++){
+				for(int j =0; j < 60; j++){
+					storageGrid[i][j].cost = 0;
+					storageGrid[i][j].listMembership = 0;
+				}
+			}
 			storageGrid[waypoints[waypoint][0]][waypoints[waypoint][1]].listMembership = 1;
 			storageGrid[waypoints[waypoint][0]][waypoints[waypoint][1]].cost = 0;
 
 			bool openListEmpty = 0;
 			mainAStarLoop: while(openListEmpty == 0){
-				int12 lowestCost = 0;
+				int12 lowestCost = 3600;
 				int8 position[2];
 				openListEmpty = 1;
 				for(int x = 0; x < worldSize; x++){
@@ -68,7 +94,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 					}
 				}
 				storageGrid[position[0]][position[1]].listMembership = 2;
-				if(position[0] == waypoints[waypoint][0] && position[1] == waypoints[waypoint][1]){
+				if(position[0] == waypoints[destinationWaypoint][0] && position[1] == waypoints[destinationWaypoint][1]){
 					distanceMatrix[waypoint][destinationWaypoint] = lowestCost;
 					distanceMatrix[destinationWaypoint][waypoint] = lowestCost;
 					break;
@@ -80,21 +106,11 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			}
 		}
 	}
-}
-void checkAndUpdateNode(int8 X, int8 Y, int12 cost){
-	if(!storageGrid[X][Y].isWall){
-		if(storageGrid[X][Y].listMembership != 2){
-			if(storageGrid[X][Y].listMembership != 1){
-				storageGrid[X][Y].listMembership = 1;
-			}
-			else if(storageGrid[X][Y].cost > cost + 1){
-				storageGrid[X][Y].cost = cost + 1;
-			}
+	for (int x = 0; x < 12; x++){
+		for (int y = 0; y < 12; y++){
+			output.write((int)distanceMatrix[x][y]);
 		}
 	}
 }
 
-int12 manhattanDistance(int8 X1, int8 Y1, int8 X2, int8 Y2){
-	return (abs(X1 - X2) + abs(Y1 - Y2));
-}
 
