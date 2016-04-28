@@ -52,20 +52,79 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 		waypoints[i][1] = (int8) receiveBuffer;
 	}
 
+	// Loop through the waypoints and populte the distance matrix by performing A* search
 	numberOfWaypointsLoop: for(int waypoint = 0; waypoint < numberOfWaypoints; waypoint++) {
 		for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
 			if(waypoint == destinationWaypoint)continue;
+
+			// Reset the costs and list memberships for all the nodes in the world
 			for(int i =0; i < 60; i++){
 				for(int j =0; j < 60; j++){
 					storageGrid[i][j].cost = 0;
 					storageGrid[i][j].listMembership = 0;
 				}
 			}
+			// Find the best distance between waypoints using A* and store the result
 			int12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
 			distanceMatrix[waypoint][destinationWaypoint] = aStarResult;
 			distanceMatrix[destinationWaypoint][waypoint] = aStarResult;
 		}
 	}
+
+	// Permutate through all the possibilities of waypoints to find the best route
+	int12 lowestCost = 3600;
+	int6 bestRoute[13];
+
+	int6 waypointsToPermute[11];
+	int N = numberOfWaypoints;
+	int6 p[12];
+	for(int i = 0; i < N; i++){
+		if(i == 0)continue;
+		waypointsToPermute[i] = i;
+		p[i] = i;
+	}
+	p[N] = N;
+	int i = 1;
+	int j, temp;
+	while(i < N){
+		p[i]--;
+		j = i % 2 * p[i];
+		temp = waypointsToPermute[j];
+		waypointsToPermute[j] = waypointsToPermute[i];
+		waypointsToPermute[i] = temp;
+		//DO the thing here
+		int12 currentRouteCost = 0;
+		currentRouteCost += distanceMatrix[0][waypointsToPermute[0]];
+		for(int x = 0; x < numberOfWaypoints -1; x++){
+			currentRouteCost += distanceMatrix[waypointsToPermute[i]][waypointsToPermute[i+1]];
+		}
+		currentRouteCost += distanceMatrix[N][0];
+		if(currentRouteCost < lowestCost){
+			lowestCost = currentRouteCost;
+			bestRoute[0] = 0;
+			for(int x = 0; x < numberOfWaypoints; x++){
+				bestRoute[x + 1] = waypointsToPermute[x];
+			}
+			bestRoute[numberOfWaypoints + 1] = 0; // Might not deep copy correctly?
+		}
+
+//		for (int x = 0; x < 12; x++){
+//			printf("%d ",(int)waypointsToPermute[x]);
+//		}
+		printf("\n");
+		i = 1;
+		while(!p[i]){
+			p[i] = i;
+			i++;
+		}
+	}
+	for (int x = 0; x < 12; x++){
+		printf("%d ",(int)bestRoute[x]);
+	}
+	printf("\n");
+
+
+	// Output the distance matrix for testing in the testbench
 	for (int x = 0; x < 12; x++){
 		for (int y = 0; y < 12; y++){
 			output.write((int)distanceMatrix[x][y]);
@@ -105,7 +164,6 @@ int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
 		checkAndUpdateNode(position[0], position[1] -1, lowestCost); // SOUTH
 	}
 }
-
 
 void checkAndUpdateNode(int8 X, int8 Y, int12 cost){
 	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
