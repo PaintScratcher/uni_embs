@@ -10,19 +10,8 @@ Node storageGrid[60][60];
 Wall walls[12];
 int8 waypoints[12][2];
 //Prototypes
-void checkAndUpdateNode(int8 X, int8 Y, int12 cost){
-	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
-		if(storageGrid[X][Y].listMembership != 2){
-			if(storageGrid[X][Y].listMembership != 1){
-				storageGrid[X][Y].listMembership = 1;
-				storageGrid[X][Y].cost = cost + 1;
-			}
-			else if(storageGrid[X][Y].cost > cost + 1){
-				storageGrid[X][Y].cost = cost + 1;
-			}
-		}
-	}
-}
+void checkAndUpdateNode(int8 X, int8 Y, int12 cost);
+int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY);
 
 int12 manhattanDistance(int8 X1, int8 Y1, int8 X2, int8 Y2){
 	return (abs(X1 - X2) + abs(Y1 - Y2));
@@ -72,43 +61,62 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 					storageGrid[i][j].listMembership = 0;
 				}
 			}
-			storageGrid[waypoints[waypoint][0]][waypoints[waypoint][1]].listMembership = 1;
-			storageGrid[waypoints[waypoint][0]][waypoints[waypoint][1]].cost = 0;
-
-			bool openListEmpty = 0;
-			mainAStarLoop: while(openListEmpty == 0){
-				int12 lowestCost = 3600;
-				int8 position[2];
-				openListEmpty = 1;
-				for(int x = 0; x < worldSize; x++){
-					for(int y = 0; y < worldSize; y++){
-						if(storageGrid[x][y].listMembership == 1){
-							openListEmpty = 0;
-							int12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y,waypoints[destinationWaypoint][0],waypoints[destinationWaypoint][1]);
-							if(currentNodeCost < lowestCost){
-								position[0] = x;
-								position[1] = y;
-								lowestCost = currentNodeCost;
-							}
-						}
-					}
-				}
-				storageGrid[position[0]][position[1]].listMembership = 2;
-				if(position[0] == waypoints[destinationWaypoint][0] && position[1] == waypoints[destinationWaypoint][1]){
-					distanceMatrix[waypoint][destinationWaypoint] = lowestCost;
-					distanceMatrix[destinationWaypoint][waypoint] = lowestCost;
-					break;
-				}
-				checkAndUpdateNode(position[0], position[1] +1, lowestCost); // NORTH
-				checkAndUpdateNode(position[0] + 1, position[1], lowestCost); // EAST
-				checkAndUpdateNode(position[0] - 1, position[1] +1, lowestCost); // WEST
-				checkAndUpdateNode(position[0], position[1] -1, lowestCost); // SOUTH
-			}
+			int12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
+			distanceMatrix[waypoint][destinationWaypoint] = aStarResult;
+			distanceMatrix[destinationWaypoint][waypoint] = aStarResult;
 		}
 	}
 	for (int x = 0; x < 12; x++){
 		for (int y = 0; y < 12; y++){
 			output.write((int)distanceMatrix[x][y]);
+		}
+	}
+}
+
+int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
+	storageGrid[startX][startY].listMembership = 1;
+	storageGrid[startX][startY].cost = 0;
+
+	bool openListEmpty = 0;
+	mainAStarLoop: while(openListEmpty == 0){
+		int12 lowestCost = 3600;
+		int8 position[2];
+		openListEmpty = 1;
+		for(int x = 0; x < worldSize; x++){
+			for(int y = 0; y < worldSize; y++){
+				if(storageGrid[x][y].listMembership == 1){
+					openListEmpty = 0;
+					int12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y,destX,destY);
+					if(currentNodeCost < lowestCost){
+						position[0] = x;
+						position[1] = y;
+						lowestCost = currentNodeCost;
+					}
+				}
+			}
+		}
+		storageGrid[position[0]][position[1]].listMembership = 2;
+		if(position[0] == destX && position[1] == destY){
+			return lowestCost;
+		}
+		checkAndUpdateNode(position[0], position[1] +1, lowestCost); // NORTH
+		checkAndUpdateNode(position[0] + 1, position[1], lowestCost); // EAST
+		checkAndUpdateNode(position[0] - 1, position[1] +1, lowestCost); // WEST
+		checkAndUpdateNode(position[0], position[1] -1, lowestCost); // SOUTH
+	}
+}
+
+
+void checkAndUpdateNode(int8 X, int8 Y, int12 cost){
+	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
+		if(storageGrid[X][Y].listMembership != 2){
+			if(storageGrid[X][Y].listMembership != 1){
+				storageGrid[X][Y].listMembership = 1;
+				storageGrid[X][Y].cost = cost + 1;
+			}
+			else if(storageGrid[X][Y].cost > cost + 1){
+				storageGrid[X][Y].cost = cost + 1;
+			}
 		}
 	}
 }
