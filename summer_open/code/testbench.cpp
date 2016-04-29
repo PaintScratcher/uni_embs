@@ -4,37 +4,25 @@ int main() {
 	hls::stream<uint32> to_hw, from_hw;
 
 	//Create input data
-	int6 worldSize = 30;
-	int numberofWalls = 12;
-	int numberOfWaypoints = 10;
+	int6 worldSize = 10;
+	int numberofWalls = 6;
+	int numberOfWaypoints = 4;
 	int distanceMatrix[12][12];
 
-	int waypoints[10][2] = {
-			{22, 12},
-			{19, 27},
-			{26, 6},
-			{27, 16},
-			{28, 17},
-			{3, 7},
-			{17, 28},
-			{25, 18},
-			{18, 27},
-			{1, 8}
+	int waypoints[6][2] = {
+			{2, 0},
+			{7, 2},
+			{2, 3},
+			{6, 5},
 	};
 
-	int walls[12][4] = {
-			{0, 28, 0, 5},
-			{5, 23, 1, 9},
-			{9, 14, 1, 6},
-			{23, 22, 0, 9},
-			{4, 15, 1, 6},
-			{13, 18, 1, 3},
-			{2, 10, 1, 7},
-			{12, 23, 0, 3},
-			{17, 17, 1, 6},
-			{15, 23, 0, 5},
-			{20, 25, 0, 9},
-			{28, 21, 0, 2}
+	int walls[6][4] = {
+			{0, 8, 0, 1},
+			{5, 3, 1, 3},
+			{9, 4, 1, 2},
+			{3, 2, 0, 4},
+			{4, 5, 1, 4},
+			{3, 8, 1, 1},
 	};
 	//	printf("Wall Test %x\n", walls[1][0] << 24 | walls[1][1] << 16 | walls[1][2] << 8 | walls[1][3]);
 	//	Write input data

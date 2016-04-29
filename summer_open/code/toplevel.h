@@ -26,6 +26,7 @@ typedef struct Node{
    int12 cost;
    int2 listMembership; // 0 is no group, 1 is open and 2 is closed
    int1 isWall;
+   int8 parent[2];
 };
 
 
