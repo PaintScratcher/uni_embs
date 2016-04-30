@@ -17,18 +17,24 @@ typedef ap_uint<6> int6;
 typedef ap_uint<12> int12;
 typedef ap_uint<32> int32;
 typedef struct Wall{
-   int8 X;
-   int8 Y;
-   int1 direction;
-   int6 length;
+	int8 X;
+	int8 Y;
+	int1 direction;
+	int6 length;
+};
+enum Direction
+{
+	NORTH,
+	EAST,
+	WEST,
+	SOUTH,
 };
 typedef struct Node{
-   int12 cost;
-   int2 listMembership; // 0 is no group, 1 is open and 2 is closed
-   int1 isWall;
-   int8 parent[2];
+	int12 cost;
+	int2 listMembership; // 0 is no group, 1 is open and 2 is closed
+	int1 isWall;
+	Direction parentDirection;
 };
-
 
 //Prototypes
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output);
