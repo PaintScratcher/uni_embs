@@ -57,13 +57,6 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 		for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
 			if(waypoint == destinationWaypoint)continue;
 
-			// Reset the costs and list memberships for all the nodes in the world
-			for(int i =0; i < 60; i++){
-				for(int j =0; j < 60; j++){
-					storageGrid[i][j].cost = 0;
-					storageGrid[i][j].listMembership = 0;
-				}
-			}
 			// Find the best distance between waypoints using A* and store the result
 			int12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
 			distanceMatrix[waypoint][destinationWaypoint] = aStarResult;
@@ -107,10 +100,10 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			bestRoute[numberOfWaypoints] = 0;
 		}
 
-//		for (int x = 0; x < 12; x++){
-//			printf("%d ",(int)waypointsToPermute[x]);
-//		}
-//		printf("\n");
+		//		for (int x = 0; x < 12; x++){
+		//			printf("%d ",(int)waypointsToPermute[x]);
+		//		}
+		//		printf("\n");
 		i = 1;
 		while(!p[i]){
 			p[i] = i;
@@ -130,8 +123,8 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			tempPosition[1] = storageGrid[position[0]][position[1]].parent[1];
 			position[0] = tempPosition[0];
 			position[1] = tempPosition[1];
-			printf("\r\n(%d,%d)",(int)position[0],(int)position[1]);
-//			output.write((int)position);
+			printf("\r\nx=%d(%d,%d)",x,(int)position[0],(int)position[1]);
+			//			output.write((int)position);
 		}
 	}
 
@@ -144,10 +137,16 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 }
 
 int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
+	// Reset the costs and list memberships for all the nodes in the world
+	for(int i =0; i < 60; i++){
+		for(int j =0; j < 60; j++){
+			storageGrid[i][j].cost = 0;
+			storageGrid[i][j].listMembership = 0;
+			storageGrid[i][j].parent[0] = 0;
+			storageGrid[i][j].parent[1] = 0;
+		}
+	}
 	storageGrid[startX][startY].listMembership = 1;
-	storageGrid[startX][startY].cost = 0;
-	storageGrid[startX][startY].parent[0] = 0;
-	storageGrid[startX][startY].parent[1] = 0;
 
 	bool openListEmpty = 0;
 	mainAStarLoop: while(openListEmpty == 0){
