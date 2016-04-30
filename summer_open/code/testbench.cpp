@@ -24,9 +24,8 @@ int main() {
 			{4, 5, 1, 4},
 			{3, 8, 1, 1},
 	};
-	//	printf("Wall Test %x\n", walls[1][0] << 24 | walls[1][1] << 16 | walls[1][2] << 8 | walls[1][3]);
-	//	Write input data
 
+	//	Write input data
 	to_hw.write(worldSize);
 	to_hw.write(numberofWalls);
 	to_hw.write(numberOfWaypoints);
@@ -42,12 +41,10 @@ int main() {
 	toplevel(to_hw, from_hw);
 
 	//Read and report the output
-	for (int x = 0; x < 12; x++){
-		for (int y = 0; y < 12; y++){
-//			distanceMatrix[x][y] = from_hw.read();
-			printf("%d     ", (int)from_hw.read());
-		}
-		printf("\n");
+	int numberOfPointsToReceive = from_hw.read();
+	printf("%x\n\r", numberOfPointsToReceive);
+	for (int i = 0; i < numberOfPointsToReceive; i++){
+		printf("%x\n\r", (int)from_hw.read());
 	}
 }
 

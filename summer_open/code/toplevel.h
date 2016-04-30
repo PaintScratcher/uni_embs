@@ -40,7 +40,9 @@ typedef struct Node{
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output);
 
 //Size of the example functionality
-#define MAXWORLDSIZE 60
+#define MAX_WORLD_SIZE 60
+#define MAX_NUMBER_OF_WAYPOINTS 12
+#define MAX_NUMBER_OF_WALLS 20
 
 #endif
 

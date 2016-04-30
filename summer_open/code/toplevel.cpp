@@ -1,14 +1,15 @@
 #include "toplevel.h"
 
-//Input data storage
-int8 distanceMatrix[12][12];
+//Data storage
+int8 distanceMatrix[MAX_NUMBER_OF_WAYPOINTS][MAX_NUMBER_OF_WAYPOINTS];
 int6 numberOfWalls;
 int6 numberOfWaypoints;
 int6 worldSize;
 int32 receiveBuffer;
-Node storageGrid[60][60];
-Wall walls[12];
-int8 waypoints[12][2];
+Node storageGrid[MAX_WORLD_SIZE][MAX_WORLD_SIZE];
+Wall walls[MAX_NUMBER_OF_WALLS];
+int8 waypoints[MAX_NUMBER_OF_WAYPOINTS][2];
+
 //Prototypes
 void checkAndUpdateNode(int8 X, int8 Y, int12 cost, Direction parentDirection);
 int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY);
@@ -16,6 +17,7 @@ int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY);
 int12 manhattanDistance(int8 X1, int8 Y1, int8 X2, int8 Y2){
 	return (abs(X1 - X2) + abs(Y1 - Y2));
 }
+
 //Top-level function
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 #pragma HLS RESOURCE variable=input core=AXI4Stream
@@ -23,7 +25,6 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
 	//Read in the data
-
 	worldSize = input.read();
 	numberOfWalls = input.read();
 	numberOfWaypoints = input.read();
@@ -52,25 +53,24 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 		waypoints[i][1] = (int8) receiveBuffer;
 	}
 
-	// Loop through the waypoints and populte the distance matrix by performing A* search
+	// Loop through the waypoints and populate the distance matrix by performing A* search
 	numberOfWaypointsLoop: for(int waypoint = 0; waypoint < numberOfWaypoints; waypoint++) {
-		for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
+		destinationsLoop: for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
 			if(waypoint == destinationWaypoint)continue;
 
-			// Find the best distance between waypoints using A* and store the result
+			// Find the best route distance between waypoints using A* and store the result
 			int12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
 			distanceMatrix[waypoint][destinationWaypoint] = aStarResult;
 			distanceMatrix[destinationWaypoint][waypoint] = aStarResult;
 		}
 	}
-
 	// Permutate through all the possibilities of waypoints to find the best route
 	int12 lowestCost = 3600;
-	int6 bestRoute[13];
+	int6 bestRoute[MAX_NUMBER_OF_WAYPOINTS + 1];
+	int6 waypointsToPermute[MAX_NUMBER_OF_WAYPOINTS - 1];
 
-	int6 waypointsToPermute[11];
 	int N = numberOfWaypoints -1;
-	int6 p[12];
+	int6 p[MAX_NUMBER_OF_WAYPOINTS];
 	for(int i = 0; i < N; i++){
 		waypointsToPermute[i] = i + 1;
 		p[i] = i;
@@ -78,19 +78,19 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	p[N] = N;
 	int i = 1;
 	int j, temp;
+	int12 currentRouteCost;
 	while(i < N){
 		p[i]--;
 		j = i % 2 * p[i];
 		temp = waypointsToPermute[j];
 		waypointsToPermute[j] = waypointsToPermute[i];
 		waypointsToPermute[i] = temp;
-		//DO the thing here
-		int12 currentRouteCost = 0;
-		currentRouteCost += distanceMatrix[0][waypointsToPermute[0]];
-		for(int x = 0; x < numberOfWaypoints -1; x++){
-			currentRouteCost += distanceMatrix[waypointsToPermute[i]][waypointsToPermute[i+1]];
+		//Do the thing here
+		currentRouteCost = distanceMatrix[0][waypointsToPermute[0]];
+		for(int x = 0; x < numberOfWaypoints -2; x++){
+			currentRouteCost += distanceMatrix[waypointsToPermute[x]][waypointsToPermute[x+1]];
 		}
-		currentRouteCost += distanceMatrix[N][0];
+		currentRouteCost += distanceMatrix[waypointsToPermute[numberOfWaypoints -2]][0];
 		if(currentRouteCost < lowestCost){
 			lowestCost = currentRouteCost;
 			bestRoute[0] = 0;
@@ -99,21 +99,15 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			}
 			bestRoute[numberOfWaypoints] = 0;
 		}
-
-		//		for (int x = 0; x < 12; x++){
-		//			printf("%d ",(int)waypointsToPermute[x]);
-		//		}
-		//		printf("\n");
 		i = 1;
 		while(!p[i]){
 			p[i] = i;
 			i++;
 		}
 	}
-	for (int x = 0; x < 12; x++){
-		printf("%d",(int)bestRoute[x]);
-	}
 	int8 position[2],tempPosition[2];
+	int test;
+	output.write(lowestCost);
 	for(int x = 0; x < numberOfWaypoints; x++){
 		aStarSearch(waypoints[bestRoute[x]][0], waypoints[bestRoute[x]][1], waypoints[bestRoute[x+1]][0], waypoints[bestRoute[x+1]][1]);
 		position[0] = waypoints[bestRoute[x+1]][0];
@@ -133,15 +127,10 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 				position[1] += 1;
 				break;
 			}
-			printf("\r\nx=%d(%d,%d)",x,(int)position[0],(int)position[1]);
-			//			output.write((int)position);
-		}
-	}
 
-	// Output the distance matrix for testing in the testbench
-	for (int x = 0; x < 12; x++){
-		for (int y = 0; y < 12; y++){
-			output.write((int)distanceMatrix[x][y]);
+			test = position[0];
+			test = test << 8 | position[1];
+			output.write(test);
 		}
 	}
 }
@@ -200,5 +189,4 @@ void checkAndUpdateNode(int8 X, int8 Y, int12 cost, Direction parentDirection){
 		}
 	}
 }
-
 
