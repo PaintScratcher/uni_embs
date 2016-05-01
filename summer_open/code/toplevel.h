@@ -7,21 +7,22 @@
 #include <hls_stream.h>
 
 //Typedefs
+typedef ap_uint<1> uint1;
+typedef ap_uint<2> uint2;
+typedef ap_uint<8> uint8;
+typedef ap_uint<6> uint6;
+typedef ap_uint<12> uint12;
 typedef ap_uint<32> uint32;
-typedef ap_uint<32> int32;
-typedef ap_uint<1> int1;
-typedef ap_uint<2> int2;
-typedef ap_uint<4> int4;
-typedef ap_uint<8> int8;
-typedef ap_uint<6> int6;
-typedef ap_uint<12> int12;
-typedef ap_uint<32> int32;
-typedef struct Wall{
-	int8 X;
-	int8 Y;
-	int1 direction;
-	int6 length;
+
+// Define data structure to store wall information
+struct Wall{
+	uint8 X; // Grid X co-ordinate
+	uint8 Y; // Grid Y co-ordinate
+	uint1 direction; // Direction of the wall, 0 is horizontal, 1 is vertical
+	uint6 length; // Length of the wall, in grid units
 };
+
+// Define an enum for east reading of directions in the code
 enum Direction
 {
 	NORTH,
@@ -29,20 +30,22 @@ enum Direction
 	WEST,
 	SOUTH,
 };
-typedef struct Node{
-	int12 cost;
-	int2 listMembership; // 0 is no group, 1 is open and 2 is closed
-	int1 isWall;
-	Direction parentDirection;
+
+// Define data structure to store information on A* nodes
+struct Node{
+	uint12 cost; // Distance cost of the node
+	uint2 listMembership; // A* list membership. 0 is no group, 1 is open and 2 is closed
+	uint1 isWall; // 0 is default, set to 1 if the current node is a wall
+	Direction parentDirection; // Grid direction to find the nodes A* parent node
 };
 
 //Prototypes
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output);
 
 //Size of the example functionality
-#define MAX_WORLD_SIZE 60
-#define MAX_NUMBER_OF_WAYPOINTS 12
-#define MAX_NUMBER_OF_WALLS 20
+#define MAX_WORLD_SIZE 60 // Grid size of the large world
+#define MAX_NUMBER_OF_WAYPOINTS 12 // Maximum number of waypoints possible in a large world
+#define MAX_NUMBER_OF_WALLS 20 // Maximum number of walls possible in a large world
 
 #endif
 

@@ -1,77 +1,89 @@
 #include "toplevel.h"
 
-//Data storage
-int8 distanceMatrix[MAX_NUMBER_OF_WAYPOINTS][MAX_NUMBER_OF_WAYPOINTS];
-int6 numberOfWalls;
-int6 numberOfWaypoints;
-int6 worldSize;
-int32 receiveBuffer;
-Node storageGrid[MAX_WORLD_SIZE][MAX_WORLD_SIZE];
-Wall walls[MAX_NUMBER_OF_WALLS];
-int8 waypoints[MAX_NUMBER_OF_WAYPOINTS][2];
+// Data storage
+uint8 distanceMatrix[MAX_NUMBER_OF_WAYPOINTS][MAX_NUMBER_OF_WAYPOINTS]; // Structure to store the distances between waypoints
+uint6 numberOfWalls; // Number of walls in the world being solved
+uint6 numberOfWaypoints; // Number of waypoints in the world being solved
+uint6 worldSize; // The size of the world being solved
+uint32 receiveBuffer; // Buffer for the input AXI stream from the MicroBlaze
+Node storageGrid[MAX_WORLD_SIZE][MAX_WORLD_SIZE]; // Structure to store the world node information for the A* algorithm
+uint8 waypoints[MAX_NUMBER_OF_WAYPOINTS][2]; // Structure to store information on the waypoints in the world being solved
 
-//Prototypes
-void checkAndUpdateNode(int8 X, int8 Y, int12 cost, Direction parentDirection);
-int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY);
+// Function prototypes
+void checkAndUpdateNode(uint8 X, uint8 Y, uint12 cost, Direction parentDirection);
+uint12 aStarSearch(uint8 startX, uint8 startY, uint8 destX, uint8 destY);
+void findBestRoute();
 
-int12 manhattanDistance(int8 X1, int8 Y1, int8 X2, int8 Y2){
+uint12 manhattanDistance(uint8 X1, uint8 Y1, uint8 X2, uint8 Y2){
+	// Takes the X and Y coordinates of two grid positions in the world and returns
+	// the Manhattan distance between them
 	return (abs(X1 - X2) + abs(Y1 - Y2));
 }
 
-//Top-level function
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
-#pragma HLS RESOURCE variable=input core=AXI4Stream
-#pragma HLS RESOURCE variable=output core=AXI4Stream
-#pragma HLS INTERFACE ap_ctrl_none port=return
+	// Main function of the hardware segment of the code
 
-	//Read in the data
-	worldSize = input.read();
+	// Define the AXI streams to communicate with MicroBlaze
+	#pragma HLS RESOURCE variable=input core=AXI4Stream
+	#pragma HLS RESOURCE variable=output core=AXI4Stream
+	#pragma HLS INTERFACE ap_ctrl_none port=return
 
-	numberOfWaypoints = input.read();
+	// ***Read in the data from the MicroBlaze via an AXI stream***
+	worldSize = input.read(); // Read the grid size of the current world being solved
 
+	numberOfWaypoints = input.read(); // Read the number of waypoints in the world
 	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
+		// For each waypoint in the world, read its information from the input stream and store it for use later
 		receiveBuffer = input.read();
-		waypoints[i][0] = (int8) (receiveBuffer >> 8);
-		waypoints[i][1] = (int8) receiveBuffer;
+		waypoints[i][0] = (uint8) (receiveBuffer >> 8); // Input is two bytes wide so we right shift by 1 byte to store the first one
+		waypoints[i][1] = (uint8) receiveBuffer;
 	}
-	numberOfWalls = input.read();
+
+	numberOfWalls = input.read(); // Read the number of walls in the world
+	Wall wall; // Create a wall object to store the received wall
 	wallReadLoop:	for(int wallLoopCount = 0; wallLoopCount < numberOfWalls; wallLoopCount++) {
+		// For each wall in the world, read its information from the input stream and store it for later use
 		receiveBuffer = input.read();
-		int8 wall[4];
-		wall[0] = (int8) (receiveBuffer >> 24);
-		wall[1] = (int8) (receiveBuffer >> 16);
-		wall[2] = (int8) (receiveBuffer >> 8);
-		wall[3] = (int8) receiveBuffer;
-		if(wall[2] == 0){
-			for(int i = 0; i < wall[3]; i++){
-				storageGrid[wall[0] + i][wall[1]].isWall = 1;
+		wall.X = (uint8) (receiveBuffer >> 24); // Input is four bytes wide so we right shift by 1 byte more each time to store the correct bytes
+		wall.Y = (uint8) (receiveBuffer >> 16);
+		wall.direction = (uint8) (receiveBuffer >> 8);
+		wall.length = (uint8) receiveBuffer;
+
+		if(wall.direction == 0){ // If the wall is horizontal
+			for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the X direction
+				storageGrid[wall.X + i][wall.Y].isWall = 1;
 			}
 		}
-		else{
-			for(int i = 0; i < wall[3]; i++){
-				storageGrid[wall[0]][wall[1] + i].isWall = 1;
+		else{ // If the wall is vertical
+			for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the Y direction
+				storageGrid[wall.X][wall.Y + i].isWall = 1;
 			}
 		}
 	}
 
-	// Loop through the waypoints and populate the distance matrix by performing A* search
+	// *** Perform A* algorithm to populate the distance matrix ***
 	numberOfWaypointsLoop: for(int waypoint = 0; waypoint < numberOfWaypoints; waypoint++) {
+		// Loop through the waypoints and populate the distance matrix by performing A* search
 		destinationsLoop: for(int destinationWaypoint = 0; destinationWaypoint < numberOfWaypoints; destinationWaypoint++){
-			if(waypoint == destinationWaypoint)continue;
+			// Loop through all other waypoints as destinations to ensure the distance matrix is populated
+			if(waypoint == destinationWaypoint)continue; // Do not find the distance to the same position
+			if(distanceMatrix[waypoint][destinationWaypoint] != 0)continue; // Distance matrix is symmetric, so dont calculate distance if we already have one
 
 			// Find the best route distance between waypoints using A* and store the result
-			int12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
-			distanceMatrix[waypoint][destinationWaypoint] = aStarResult;
+			uint12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
+			distanceMatrix[waypoint][destinationWaypoint] = aStarResult; // Distance matrix is symmetric, so store in both combinations
 			distanceMatrix[destinationWaypoint][waypoint] = aStarResult;
 		}
 	}
-	// Permutate through all the possibilities of waypoints to find the best route
-	int12 lowestCost = 3600;
-	int6 bestRoute[MAX_NUMBER_OF_WAYPOINTS + 1];
-	int6 waypointsToPermute[MAX_NUMBER_OF_WAYPOINTS - 1];
+
+	// *** Permutate through all the possibilities of waypoints to find the cheapest route ***
+
+	uint12 lowestCost = 3600;
+	uint6 bestRoute[MAX_NUMBER_OF_WAYPOINTS + 1];
+	uint6 waypointsToPermute[MAX_NUMBER_OF_WAYPOINTS - 1];
 
 	int N = numberOfWaypoints -1;
-	int6 p[MAX_NUMBER_OF_WAYPOINTS];
+	uint6 p[MAX_NUMBER_OF_WAYPOINTS];
 	for(int i = 0; i < N; i++){
 		waypointsToPermute[i] = i + 1;
 		p[i] = i;
@@ -79,7 +91,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	p[N] = N;
 	int i = 1;
 	int j, temp;
-	int12 currentRouteCost;
+	uint12 currentRouteCost;
 	while(i < N){
 		p[i]--;
 		j = i % 2 * p[i];
@@ -106,7 +118,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			i++;
 		}
 	}
-	int8 position[2],tempPosition[2];
+	uint8 position[2],tempPosition[2];
 	int test;
 	output.write(lowestCost);
 	for(int x = 0; x < numberOfWaypoints; x++){
@@ -136,7 +148,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	}
 }
 
-int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
+uint12 aStarSearch(uint8 startX, uint8 startY, uint8 destX, uint8 destY){
 	// Reset the costs and list memberships for all the nodes in the world
 	for(int i =0; i < 60; i++){
 		for(int j =0; j < 60; j++){
@@ -148,14 +160,14 @@ int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
 
 	bool openListEmpty = 0;
 	mainAStarLoop: while(openListEmpty == 0){
-		int12 lowestCost = 3600;
-		int8 position[2];
+		uint12 lowestCost = 3600;
+		uint8 position[2];
 		openListEmpty = 1;
 		for(int x = 0; x < worldSize; x++){
 			for(int y = 0; y < worldSize; y++){
 				if(storageGrid[x][y].listMembership == 1){
 					openListEmpty = 0;
-					int12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y,destX,destY);
+					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y,destX,destY);
 					if(currentNodeCost < lowestCost){
 						position[0] = x;
 						position[1] = y;
@@ -175,7 +187,7 @@ int12 aStarSearch(int8 startX, int8 startY, int8 destX, int8 destY){
 	}
 }
 
-void checkAndUpdateNode(int8 X, int8 Y, int12 cost, Direction parentDirection){
+void checkAndUpdateNode(uint8 X, uint8 Y, uint12 cost, Direction parentDirection){
 	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
 		if(storageGrid[X][Y].listMembership != 2){
 			if(storageGrid[X][Y].listMembership != 1){
