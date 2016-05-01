@@ -4,6 +4,7 @@
 #include "xuartlite_l.h" // This is an L (for low-level), not a 1
 #include <stdlib.h>
 #include "xemaclite.h"
+#include "fsl.h"
 
 // Colour definitions (1 pixel per byte)
 #define BLACK   0b00000000
@@ -47,6 +48,7 @@ int main() {
 	recieveWorldInfo();
 	recieveFromEthernet();
 	drawWorld();
+	recieveFromHardware();
 
 	return 0;
 }
@@ -118,27 +120,23 @@ void recieveFromEthernet(){
 			int wallCounter = 0;
 			worldWidth = recv_buffer[19];
 			worldHeight = recv_buffer[20];
+			putfslx(worldHeight, 0, FSL_DEFAULT);
 			numberOfWaypoints = recv_buffer[21];
+			putfslx(numberOfWaypoints, 0, FSL_DEFAULT);
+
 			for (i = 0; i < numberOfWaypoints * 2; i = i +2){
 				waypoints[wayPointCounter][0] = recv_buffer[22 + i]; // X Location
 				waypoints[wayPointCounter][1] = recv_buffer[22 + i + 1]; // Y Location
+				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
+				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT);
 				wayPointCounter++;
 			}
 			int numberOfWallsLocation;
 			numberOfWallsLocation = 22 + (numberOfWaypoints * 2);
 			numberOfWalls = recv_buffer[numberOfWallsLocation];
-			xil_printf("\r\nNumberOfWalls= %d", numberOfWalls);
 			for (i = 1; i < numberOfWalls * 4; i = i + 4){
-//				xil_printf("\r\nXLoc= %d", recv_buffer[numberOfWallsLocation + i]);
-//				xil_printf("\r\nYLoc= %d", recv_buffer[numberOfWallsLocation + i + 1]);
-//				xil_printf("\r\nDirection= %d", recv_buffer[numberOfWallsLocation + i + 2]);
-//				xil_printf("\r\nLength= %d", recv_buffer[numberOfWallsLocation + i + 3]);
-
-//				xil_printf("\r\nXLoc= %d", numberOfWallsLocation + i);
-//				xil_printf("\r\nYLoc= %d", numberOfWallsLocation + i + 1);
-//				xil_printf("\r\nDirection= %d", numberOfWallsLocation + i + 2);
-//				xil_printf("\r\nLength= %d", numberOfWallsLocation + i + 3);
-
+				putfslx(recv_buffer[numberOfWallsLocation + i] << 24 | recv_buffer[numberOfWallsLocation + i + 1] << 16 | recv_buffer[numberOfWallsLocation + i + 2] << 8 | recv_buffer[numberOfWallsLocation + i + 3], 0, FSL_DEFAULT);
+				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
 				walls[wallCounter][0] = recv_buffer[numberOfWallsLocation + i]; // X Location
 				walls[wallCounter][1] = recv_buffer[numberOfWallsLocation + i + 1];// Y Location
 				walls[wallCounter][2] = recv_buffer[numberOfWallsLocation + i + 2];// Direction (0 = horizontal, 1 = vertical)
@@ -147,6 +145,15 @@ void recieveFromEthernet(){
 			}
 			return;
 		}
+	}
+}
+void recieveFromHardware(){
+	int numberOfPointsToReceive, i, received;
+	getfslx(numberOfPointsToReceive, 0, FSL_DEFAULT);
+	xil_printf("\r\n%x",numberOfPointsToReceive);
+	for (i = 0; i < numberOfPointsToReceive; i++){
+		getfslx(received, 0, FSL_DEFAULT);
+		xil_printf("\r\n%x",received);
 	}
 }
 
@@ -166,7 +173,7 @@ void drawWorld(){
 		drawRectInGrid(waypoints[i][0],waypoints[i][1],gridSize,gridSize,GREEN);
 	}
 	for(i = 0; i < numberOfWalls; i++){
-		xil_printf("\r\nWall Direction: %d",walls[i][2]);
+//		xil_printf("\r\nWall Direction: %d",walls[i][2]);
 		if (walls[i][2] == 0){
 			drawRectInGrid(walls[i][0],walls[i][1],walls[i][3] * gridSize,gridSize,BLUE);
 		}

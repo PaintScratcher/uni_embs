@@ -30,11 +30,11 @@ int main() {
 	to_hw.write(numberofWalls);
 	to_hw.write(numberOfWaypoints);
 
-	for(int i = 0; i < numberofWalls; i++) {
-		to_hw.write(walls[i][0] << 24 | walls[i][1] << 16 | walls[i][2] << 8 | walls[i][3]);
-	}
 	for(int i = 0; i < numberOfWaypoints; i++) {
 		to_hw.write(waypoints[i][0] << 8 | waypoints[i][1]);
+	}
+	for(int i = 0; i < numberofWalls; i++) {
+		to_hw.write(walls[i][0] << 24 | walls[i][1] << 16 | walls[i][2] << 8 | walls[i][3]);
 	}
 
 	//Run the hardware

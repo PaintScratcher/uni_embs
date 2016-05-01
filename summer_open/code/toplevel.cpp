@@ -28,6 +28,12 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	worldSize = input.read();
 	numberOfWalls = input.read();
 	numberOfWaypoints = input.read();
+
+	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
+		receiveBuffer = input.read();
+		waypoints[i][0] = (int8) (receiveBuffer >> 8);
+		waypoints[i][1] = (int8) receiveBuffer;
+	}
 	wallReadLoop:	for(int wallLoopCount = 0; wallLoopCount < numberOfWalls; wallLoopCount++) {
 		receiveBuffer = input.read();
 		int8 wall[4];
@@ -45,12 +51,6 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 				storageGrid[wall[0]][wall[1] + i].isWall = 1;
 			}
 		}
-	}
-
-	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
-		receiveBuffer = input.read();
-		waypoints[i][0] = (int8) (receiveBuffer >> 8);
-		waypoints[i][1] = (int8) receiveBuffer;
 	}
 
 	// Loop through the waypoints and populate the distance matrix by performing A* search
