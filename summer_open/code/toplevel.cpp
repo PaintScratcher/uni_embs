@@ -7,12 +7,11 @@ uint6 numberOfWaypoints; // Number of waypoints in the world being solved
 uint6 worldSize; // The size of the world being solved
 uint32 receiveBuffer; // Buffer for the input AXI stream from the MicroBlaze
 Node storageGrid[MAX_WORLD_SIZE][MAX_WORLD_SIZE]; // Structure to store the world node information for the A* algorithm
-uint8 waypoints[MAX_NUMBER_OF_WAYPOINTS][2]; // Structure to store information on the waypoints in the world being solved
+Coordinate waypoints[MAX_NUMBER_OF_WAYPOINTS]; // Structure to store information on the waypoints in the world being solved
 
 // Function prototypes
 void checkAndUpdateNode(uint8 X, uint8 Y, uint12 cost, Direction parentDirection);
-uint12 aStarSearch(uint8 startX, uint8 startY, uint8 destX, uint8 destY);
-void findBestRoute();
+uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint);
 
 uint12 manhattanDistance(uint8 X1, uint8 Y1, uint8 X2, uint8 Y2){
 	// Takes the X and Y coordinates of two grid positions in the world and returns
@@ -35,8 +34,8 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
 		// For each waypoint in the world, read its information from the input stream and store it for use later
 		receiveBuffer = input.read();
-		waypoints[i][0] = (uint8) (receiveBuffer >> 8); // Input is two bytes wide so we right shift by 1 byte to store the first one
-		waypoints[i][1] = (uint8) receiveBuffer;
+		waypoints[i].X = (uint8) (receiveBuffer >> 8); // Input is two bytes wide so we right shift by 1 byte to store the first one
+		waypoints[i].Y = (uint8) receiveBuffer;
 	}
 
 	numberOfWalls = input.read(); // Read the number of walls in the world
@@ -70,7 +69,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			if(distanceMatrix[waypoint][destinationWaypoint] != 0)continue; // Distance matrix is symmetric, so dont calculate distance if we already have one
 
 			// Find the best route distance between waypoints using A* and store the result
-			uint12 aStarResult = aStarSearch(waypoints[waypoint][0], waypoints[waypoint][1], waypoints[destinationWaypoint][0], waypoints[destinationWaypoint][1]);
+			uint12 aStarResult = aStarSearch(waypoints[waypoint],waypoints[destinationWaypoint]);
 			distanceMatrix[waypoint][destinationWaypoint] = aStarResult; // Distance matrix is symmetric, so store in both combinations
 			distanceMatrix[destinationWaypoint][waypoint] = aStarResult;
 		}
@@ -130,43 +129,43 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	}
 
 	// *** Now we have the best route round the waypoints cycle, we need to generate the steps on the route and send them back to the Microblaze ***
-	uint8 position[2];
+	Coordinate position;
 	int tempPosition;
 
 	output.write(lowestCost); // Send the cost of the route to the Microblaze so the software knows how many points on the route are to be received
 	for(int x = 0; x < numberOfWaypoints; x++){
 		// For every pair of waypoints next too each other in the best route we need to re-run A* to find the best route between them so we can send that to software
-		aStarSearch(waypoints[bestRoute[x]][0], waypoints[bestRoute[x]][1], waypoints[bestRoute[x+1]][0], waypoints[bestRoute[x+1]][1]); // Run A* between the two waypoints to update storageGrid with node parents
+		aStarSearch(waypoints[bestRoute[x]],waypoints[bestRoute[x+1]]); // Run A* between the two waypoints to update storageGrid with node parents
 		// A* starts at the destination waypoint and returns to the start waypoint, storing the parent nodes as it goes
 		// We can re-trace the route by following the parent routing through the grid until we find the start waypoint
-		position[0] = waypoints[bestRoute[x+1]][0]; // X coordinate of our current position
-		position[1] = waypoints[bestRoute[x+1]][1]; // Y coordinate of our current position
-		while(position[0] != waypoints[bestRoute[x]][0] || position[1] != waypoints[bestRoute[x]][1]){
+		position.X = waypoints[bestRoute[x+1]].X; // X coordinate of our current position
+		position.Y = waypoints[bestRoute[x+1]].Y; // Y coordinate of our current position
+		while(position.X != waypoints[bestRoute[x]].X || position.Y != waypoints[bestRoute[x]].Y){
 			// While we are not at the start waypoint
-			switch(storageGrid[position[0]][position[1]].parentDirection){
+			switch(storageGrid[position.X][position.Y].parentDirection){
 			// Read the direction of the current nodes parent and update our current position accordingly
 			case NORTH:
-				position[1] -= 1;
+				position.Y -= 1;
 				break;
 			case EAST:
-				position[0] += 1;
+				position.X += 1;
 				break;
 			case WEST:
-				position[0] -= 1;
+				position.X -= 1;
 				break;
 			case SOUTH:
-				position[1] += 1;
+				position.Y += 1;
 				break;
 			}
 
-			tempPosition = position[0];
-			tempPosition = tempPosition << 8 | position[1]; // Construct our position in a 32bit int for output on the AXI stream
+			tempPosition = position.X;
+			tempPosition = tempPosition << 8 | position.Y; // Construct our position in a 32bit int for output on the AXI stream
 			output.write(tempPosition); // Output our current position to the Microblaze such that it can be printed to the VGA
 		}
 	}
 }
 
-uint12 aStarSearch(uint8 startX, uint8 startY, uint8 destX, uint8 destY){
+uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint){
 	// Reset the costs and list memberships for all the nodes in the world
 	for(int i =0; i < 60; i++){
 		for(int j =0; j < 60; j++){
@@ -174,34 +173,34 @@ uint12 aStarSearch(uint8 startX, uint8 startY, uint8 destX, uint8 destY){
 			storageGrid[i][j].listMembership = 0;
 		}
 	}
-	storageGrid[startX][startY].listMembership = 1;
+	storageGrid[startWaypoint.X][startWaypoint.Y].listMembership = 1;
 
 	bool openListEmpty = 0;
 	mainAStarLoop: while(openListEmpty == 0){
 		uint12 lowestCost = 3600;
-		uint8 position[2];
+		Coordinate position;
 		openListEmpty = 1;
 		for(int x = 0; x < worldSize; x++){
 			for(int y = 0; y < worldSize; y++){
 				if(storageGrid[x][y].listMembership == 1){
 					openListEmpty = 0;
-					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y,destX,destY);
+					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y ,destinationWaypoint.X, destinationWaypoint.Y);
 					if(currentNodeCost < lowestCost){
-						position[0] = x;
-						position[1] = y;
+						position.X = x;
+						position.Y = y;
 						lowestCost = currentNodeCost;
 					}
 				}
 			}
 		}
-		storageGrid[position[0]][position[1]].listMembership = 2;
-		if(position[0] == destX && position[1] == destY){
+		storageGrid[position.X][position.Y].listMembership = 2;
+		if(position.X == destinationWaypoint.X && position.Y == destinationWaypoint.Y){
 			return lowestCost;
 		}
-		checkAndUpdateNode(position[0], position[1] +1, storageGrid[position[0]][position[1]].cost, NORTH); // SOUTH
-		checkAndUpdateNode(position[0] + 1, position[1], storageGrid[position[0]][position[1]].cost, WEST); // EAST
-		checkAndUpdateNode(position[0] - 1, position[1], storageGrid[position[0]][position[1]].cost, EAST); // WEST
-		checkAndUpdateNode(position[0], position[1] -1, storageGrid[position[0]][position[1]].cost, SOUTH); // NORTH
+		checkAndUpdateNode(position.X, position.Y +1, storageGrid[position.X][position.Y].cost, NORTH); // SOUTH
+		checkAndUpdateNode(position.X + 1, position.Y, storageGrid[position.X][position.Y].cost, WEST); // EAST
+		checkAndUpdateNode(position.X - 1, position.Y, storageGrid[position.X][position.Y].cost, EAST); // WEST
+		checkAndUpdateNode(position.X, position.Y -1, storageGrid[position.X][position.Y].cost, SOUTH); // NORTH
 	}
 }
 
