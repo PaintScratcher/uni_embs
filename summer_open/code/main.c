@@ -63,7 +63,7 @@ void recieveWorldInfo(){
 				xil_printf("%s", "\r\nPlease input the desired world ID: ");
 			}
 			else{
-				if (received == '\r'){
+				if (received == 'a'){
 					int i;
 					tmit_buffer[14] = 0x01;
 					tmit_buffer[15] = worldSize;
@@ -123,20 +123,20 @@ void recieveFromEthernet(){
 			putfslx(worldHeight, 0, FSL_DEFAULT);
 			numberOfWaypoints = recv_buffer[21];
 			putfslx(numberOfWaypoints, 0, FSL_DEFAULT);
-
 			for (i = 0; i < numberOfWaypoints * 2; i = i +2){
 				waypoints[wayPointCounter][0] = recv_buffer[22 + i]; // X Location
 				waypoints[wayPointCounter][1] = recv_buffer[22 + i + 1]; // Y Location
-				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
+//				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
 				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT);
 				wayPointCounter++;
 			}
 			int numberOfWallsLocation;
 			numberOfWallsLocation = 22 + (numberOfWaypoints * 2);
 			numberOfWalls = recv_buffer[numberOfWallsLocation];
+			putfslx(numberOfWalls, 0, FSL_DEFAULT);
 			for (i = 1; i < numberOfWalls * 4; i = i + 4){
 				putfslx(recv_buffer[numberOfWallsLocation + i] << 24 | recv_buffer[numberOfWallsLocation + i + 1] << 16 | recv_buffer[numberOfWallsLocation + i + 2] << 8 | recv_buffer[numberOfWallsLocation + i + 3], 0, FSL_DEFAULT);
-				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
+//				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
 				walls[wallCounter][0] = recv_buffer[numberOfWallsLocation + i]; // X Location
 				walls[wallCounter][1] = recv_buffer[numberOfWallsLocation + i + 1];// Y Location
 				walls[wallCounter][2] = recv_buffer[numberOfWallsLocation + i + 2];// Direction (0 = horizontal, 1 = vertical)

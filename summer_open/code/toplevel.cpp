@@ -26,7 +26,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 
 	//Read in the data
 	worldSize = input.read();
-	numberOfWalls = input.read();
+
 	numberOfWaypoints = input.read();
 
 	waypointReadLoop: for(int i = 0; i < numberOfWaypoints; i++) {
@@ -34,6 +34,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 		waypoints[i][0] = (int8) (receiveBuffer >> 8);
 		waypoints[i][1] = (int8) receiveBuffer;
 	}
+	numberOfWalls = input.read();
 	wallReadLoop:	for(int wallLoopCount = 0; wallLoopCount < numberOfWalls; wallLoopCount++) {
 		receiveBuffer = input.read();
 		int8 wall[4];
