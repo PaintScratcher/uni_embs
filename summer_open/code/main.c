@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "xgpio_l.h"
 #include "xparameters.h"
-#include "xuartlite_l.h" // This is an L (for low-level), not a 1
+#include "xuartlite_l.h"
 #include <stdlib.h>
 #include "xemaclite.h"
 #include "fsl.h"
@@ -18,64 +18,64 @@
 #define FRAME_BUFFER XPAR_DDR_SDRAM_MPMC_BASEADDR + 139264
 
 XEmacLite ether;
-static u8 mac_address[] = {0x00, 0x11, 0x22, 0x33, 0x00, 0x02}; // Remember to change this to *your* MAC address!
-u8 tmit_buffer[XEL_MAX_FRAME_SIZE];
-u8 recv_buffer[XEL_MAX_FRAME_SIZE];
-int currentBufferIndex = 16;
-int state = 0;
-int worldID;
-int worldSize;
-int worldWidth;
-int worldHeight;
-int numberOfWaypoints;
-int numberOfWalls;
-int waypoints[12][2];
-int walls[20][4];
-int gridSize;
+static u8 mac_address[] = {0x00, 0x11, 0x22, 0x33, 0x00, 0x02}; // Assigned MAC Address
+u8 tmit_buffer[XEL_MAX_FRAME_SIZE]; // Buffer for transmitting to Ethernet
+u8 recv_buffer[XEL_MAX_FRAME_SIZE]; // Buffer for receiving from Ethernet
+int worldID; // WorldID provided by the user
+int worldSize; // Size provided by the user
+int worldWidth; // Width received via Ethernet from the server
+int worldHeight; // World height received via Ethernet from the server
+int numberOfWaypoints; // Number of waypoints in the world
+int numberOfWalls; // Number of walls in the world
+int gridSize; // Size of each grid unit, used for drawing to VGA
+
 char receive(){
+	// Helper function to handle receiving from UART and printing back to it for improved user experience
 	char recieved = XUartLite_RecvByte(XPAR_RS232_DTE_BASEADDR);
 	xil_printf("%c", recieved);
 	return recieved;
 }
 int main() {
+	// Configure ethernet
 	XEmacLite_Config *etherconfig = XEmacLite_LookupConfig(XPAR_EMACLITE_0_DEVICE_ID);
 	XEmacLite_CfgInitialize(&ether, etherconfig, etherconfig->BaseAddress);
 	XEmacLite_SetMacAddress(&ether, mac_address); //Set our sending MAC address
 	XEmacLite_FlushReceive(&ether); //Clear any received messages
+
 	xil_printf("\r\n%s", "Please input the desired world size:");
-
-
-	recieveWorldInfo();
-	recieveFromEthernet();
-	drawWorld();
-	recieveFromHardware();
-	recieveFromEthernet();
+	receiveWorldInfo(); // Receive the world information from the user via UART
+	receiveFromEthernet();
+	drawGrid();
+	receiveFromHardware();
+	receiveFromEthernet();
 
 	return 0;
 }
 
-void recieveWorldInfo(){
+void receiveWorldInfo(){
+	// Function to handle integration with the user via UART
+	int state = 0; // Store the state of the UART integration
 	while(1){
 		if (XUartLite_IsReceiveEmpty(XPAR_RS232_DTE_BASEADDR) == 0){
 			char received = receive();
-			if (state == 0){
-				worldSize = received - '0';
-				state++;
+			if (state == 0){ // If this is the first character to be received
+				worldSize = received - '0'; // We have received the world size
+				state++; // Increment the state
 				xil_printf("%s", "\r\nPlease input the desired world ID: ");
 			}
-			else{
-				if (received == 'a'){
+			else{ // We are receiving worldID information
+				if (received == 'a'){ // User has pressed return, indicating end of the worldID.
 					int i;
-					tmit_buffer[14] = 0x01;
-					tmit_buffer[15] = worldSize;
-					for(i = 0; i < 4; i++){
+					tmit_buffer[14] = 0x01; // Set the type field
+					tmit_buffer[15] = worldSize; // Add the world size to the transmit buffer
+					for(i = 0; i < 4; i++){ // Add the world ID to the transmit, as it is over several bytes we need to loop through and bit shift
 						tmit_buffer[16 + i] = worldID >> 8*(3-i);
 					}
-					sendToEthernet(6);
+					sendToEthernet(6); // Send the generated buffer to the server via ethernet
 					return;
 				}
-				else{
-					worldID = (worldID * 10) + (received - '0');
+				else{ // User has entered a character other than return so we are still receiving the worldID
+					worldID = (worldID * 10) + (received - '0'); // Decimal representation so each successive character requires timesing by 10
 				}
 			}
 		}
@@ -83,9 +83,10 @@ void recieveWorldInfo(){
 }
 
 void sendToEthernet(int messageSize) {
+	// Function to facilitate constructing and sending a message to ethernet
 	int i;
 	u8 *buffer = tmit_buffer;
-	//Write the destination MAC address (broadcast in this case)
+	//Write the destination MAC address of the server being communicated with
 	*buffer++ = 0x00;
 	*buffer++ = 0x11;
 	*buffer++ = 0x22;
@@ -108,46 +109,41 @@ void sendToEthernet(int messageSize) {
 	XEmacLite_Send(&ether, tmit_buffer, messageSize + XEL_HEADER_SIZE);
 }
 
-void recieveFromEthernet(){
+void receiveFromEthernet(){
+	// Function to receive
 	while (1){
 		int i;
 		volatile int recv_len = 0;
-		recv_len = XEmacLite_Recv(&ether, recv_buffer);
-		int type = (recv_buffer[12] << 8) | recv_buffer[13];
-		if (type != 0x55AB) continue;
-		if (recv_len == 0) continue;
-		if (recv_buffer[14] == 0x02){
-			int wayPointCounter = 0;
-			int wallCounter = 0;
-			worldWidth = recv_buffer[19];
-			worldHeight = recv_buffer[20];
-			putfslx(worldHeight, 0, FSL_DEFAULT);
-			numberOfWaypoints = recv_buffer[21];
-			putfslx(numberOfWaypoints, 0, FSL_DEFAULT);
-			for (i = 0; i < numberOfWaypoints * 2; i = i +2){
-				waypoints[wayPointCounter][0] = recv_buffer[22 + i]; // X Location
-				waypoints[wayPointCounter][1] = recv_buffer[22 + i + 1]; // Y Location
-				//				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
-				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT);
-				wayPointCounter++;
+		recv_len = XEmacLite_Recv(&ether, recv_buffer); // Store the length of the received packet
+		if (recv_len == 0) continue; // If nothing has been received, ignore
+		int type = (recv_buffer[12] << 8) | recv_buffer[13]; // Reconstruct the type field from its two bytes
+		if (type != 0x55AB) continue; // Check to see if the received packet is of the expected type, ignore it if it is not
+		if (recv_buffer[14] == 0x02){ // If the packet received is of the 'ReplyWorld' type
+			worldWidth = recv_buffer[19];  // Store the world width from the packet
+			worldHeight = recv_buffer[20]; // Store the world height from the packet
+			putfslx(worldHeight, 0, FSL_DEFAULT); // Send the world grid size to the hardware component (worlds are square)
+			numberOfWaypoints = recv_buffer[21]; // Store the number of waypoints from the packet
+			putfslx(numberOfWaypoints, 0, FSL_DEFAULT); // Send the number of waypoints to the hardware
+			for (i = 0; i < numberOfWaypoints * 2; i = i +2){ // For each of the waypoints, draw it on VGA and send it to the hardware
+				drawRectInGrid(recv_buffer[22 + i],recv_buffer[22 + i + 1],gridSize,gridSize,GREEN); // Draw the waypoint on the screen
+				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT); // Send the waypoint to the hardware
 			}
 			int numberOfWallsLocation;
-			numberOfWallsLocation = 22 + (numberOfWaypoints * 2);
-			numberOfWalls = recv_buffer[numberOfWallsLocation];
-			putfslx(numberOfWalls, 0, FSL_DEFAULT);
-			for (i = 1; i < numberOfWalls * 4; i = i + 4){
+			numberOfWallsLocation = 22 + (numberOfWaypoints * 2); // Calculate the index of the number of walls byte
+			numberOfWalls = recv_buffer[numberOfWallsLocation]; // Store the number of walls from the packet
+			putfslx(numberOfWalls, 0, FSL_DEFAULT); // Send the number of walls to the hardware
+			for (i = 1; i < numberOfWalls * 4; i = i + 4){ // For each of the walls, draw it to the VGA and send it to the hardware
 				putfslx(recv_buffer[numberOfWallsLocation + i] << 24 | recv_buffer[numberOfWallsLocation + i + 1] << 16 | recv_buffer[numberOfWallsLocation + i + 2] << 8 | recv_buffer[numberOfWallsLocation + i + 3], 0, FSL_DEFAULT);
-				//				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
-				walls[wallCounter][0] = recv_buffer[numberOfWallsLocation + i]; // X Location
-				walls[wallCounter][1] = recv_buffer[numberOfWallsLocation + i + 1];// Y Location
-				walls[wallCounter][2] = recv_buffer[numberOfWallsLocation + i + 2];// Direction (0 = horizontal, 1 = vertical)
-				walls[wallCounter][3] = recv_buffer[numberOfWallsLocation + i + 3];// Length
-				wallCounter++;
+				if (recv_buffer[numberOfWallsLocation + i + 2] == 0){ // If the wall is horizontal
+					drawRectInGrid(recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 3] * gridSize,gridSize,BLUE); // Draw the wall segment on the screen
+				}
+				else if (recv_buffer[numberOfWallsLocation + i + 2] == 1){ // If the wall is vertical
+					drawRectInGrid(recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],gridSize,recv_buffer[numberOfWallsLocation + i + 3] * gridSize,BLUE); // Draw the wall segment on the screen
+				}
 			}
-			return;
 		}
-		else if(recv_buffer[14] == 0x04){
-			if(recv_buffer[15] == 0x00){
+		else if(recv_buffer[14] == 0x04){ // If the packet received is of the 'SolutionReply' type
+			if(recv_buffer[15] == 0x00){ // Check if the solution is correct
 				xil_printf("\r\nAnswer is correct");
 			}
 			else if(recv_buffer[15] == 0x01){
@@ -157,29 +153,33 @@ void recieveFromEthernet(){
 				xil_printf("\r\nAnswer is too short");
 			}
 		}
+		drawRect(600,0,200,600,BLACK); // Draw a rectangle to the right side of the grid to overwrite any walls that are larger than the grid size
+		return;
 	}
 }
-void recieveFromHardware(){
+void receiveFromHardware(){
+	// Function to handle receiving a response from the hardware component and ask the server if the solution is correct via ethernet
 	int numberOfPointsToReceive, i, received;
-	getfslx(numberOfPointsToReceive, 0, FSL_DEFAULT);
+	getfslx(numberOfPointsToReceive, 0, FSL_DEFAULT); // Get the number of points there are in the solution
 	xil_printf("\r\n%x",numberOfPointsToReceive);
-	tmit_buffer[14] = 0x03;
-	tmit_buffer[15] = worldSize;
-	for(i = 0; i < 4; i++){
+	tmit_buffer[14] = 0x03; // Set the type field of the packet to 'SolveWorld'
+	tmit_buffer[15] = worldSize; // Set the size of the world
+	for(i = 0; i < 4; i++){ // For each byte in the worldID, add it to the transmit buffer
 		tmit_buffer[16 + i] = worldID >> 8*(3-i);
 	}
-	tmit_buffer[20] = 0x00;
-	for(i = 0; i < 4; i++){
+	tmit_buffer[20] = 0x00; // The solution is found with walls included, so we disable the Ignores walls flag
+	for(i = 0; i < 4; i++){ // Write the solution cost to the transmit buffer
 		tmit_buffer[21 + i] = numberOfPointsToReceive >> 8*(3-i);
 	}
-	sendToEthernet(11);
-	//	for (i = 0; i < numberOfPointsToReceive; i++){
-	//		getfslx(received, 0, FSL_DEFAULT);
-	//		xil_printf("\r\n%x",received);
-	//	}
+	sendToEthernet(11); // Send the transmit buffer to the server via ethernet
+	for (i = 0; i < numberOfPointsToReceive; i++){ // For each of the points in the solution route, print it to the VGA
+		getfslx(received, 0, FSL_DEFAULT); // Get the point to be printed
+		drawRectInGrid(received >> 8,received,gridSize,gridSize,GREEN); // Display to the VGA
+	}
 }
 
-void drawWorld(){
+void drawGrid(){
+	// Function to facilitate drawing a grid to the VGA
 	*((volatile unsigned int *) XPAR_EMBS_VGA_0_BASEADDR) = FRAME_BUFFER;
 	*((volatile unsigned int *) XPAR_EMBS_VGA_0_BASEADDR + 1) = 1;
 	drawRect(0,0,600,600,WHITE);
@@ -190,24 +190,10 @@ void drawWorld(){
 		drawRect(0,loc,600,1,BLACK);
 		drawRect(loc,0,1,600,BLACK);
 	}
-	int i;
-	for(i = 0; i < numberOfWaypoints; i++){
-		drawRectInGrid(waypoints[i][0],waypoints[i][1],gridSize,gridSize,GREEN);
-	}
-	for(i = 0; i < numberOfWalls; i++){
-		//		xil_printf("\r\nWall Direction: %d",walls[i][2]);
-		if (walls[i][2] == 0){
-			drawRectInGrid(walls[i][0],walls[i][1],walls[i][3] * gridSize,gridSize,BLUE);
-		}
-		else if (walls[i][2] == 1){
-			drawRectInGrid(walls[i][0],walls[i][1],gridSize,walls[i][3] * gridSize,BLUE);
-		}
-	}
-	drawRect(600,0,200,600,BLACK);
 }
 
-// Draws a rectangle of solid colour on the screen
 void drawRect(int xLoc, int yLoc, int width, int height, u8 colour) {
+	// Draws a rectangle of solid colour on the screen
 	int x, y;
 
 	for (y = yLoc; y < yLoc + height; y++) {
@@ -217,6 +203,7 @@ void drawRect(int xLoc, int yLoc, int width, int height, u8 colour) {
 	}
 }
 void drawRectInGrid(int xLoc, int yLoc, int width, int height, u8 colour) {
+	// Draws a rectangle of solid colour on the screen with correct grid offsets
 	int x, y;
 	yLoc*=gridSize;
 	xLoc*=gridSize;
