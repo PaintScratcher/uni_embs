@@ -49,6 +49,7 @@ int main() {
 	recieveFromEthernet();
 	drawWorld();
 	recieveFromHardware();
+	recieveFromEthernet();
 
 	return 0;
 }
@@ -126,7 +127,7 @@ void recieveFromEthernet(){
 			for (i = 0; i < numberOfWaypoints * 2; i = i +2){
 				waypoints[wayPointCounter][0] = recv_buffer[22 + i]; // X Location
 				waypoints[wayPointCounter][1] = recv_buffer[22 + i + 1]; // Y Location
-//				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
+				//				xil_printf("\r\nWaypoint= (%d,%d)", recv_buffer[22 + i],recv_buffer[22 + i + 1]);
 				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT);
 				wayPointCounter++;
 			}
@@ -136,7 +137,7 @@ void recieveFromEthernet(){
 			putfslx(numberOfWalls, 0, FSL_DEFAULT);
 			for (i = 1; i < numberOfWalls * 4; i = i + 4){
 				putfslx(recv_buffer[numberOfWallsLocation + i] << 24 | recv_buffer[numberOfWallsLocation + i + 1] << 16 | recv_buffer[numberOfWallsLocation + i + 2] << 8 | recv_buffer[numberOfWallsLocation + i + 3], 0, FSL_DEFAULT);
-//				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
+				//				xil_printf("\r\nWall= %d%d%d%d",recv_buffer[numberOfWallsLocation + i],recv_buffer[numberOfWallsLocation + i + 1],recv_buffer[numberOfWallsLocation + i + 2],recv_buffer[numberOfWallsLocation + i + 3]);
 				walls[wallCounter][0] = recv_buffer[numberOfWallsLocation + i]; // X Location
 				walls[wallCounter][1] = recv_buffer[numberOfWallsLocation + i + 1];// Y Location
 				walls[wallCounter][2] = recv_buffer[numberOfWallsLocation + i + 2];// Direction (0 = horizontal, 1 = vertical)
@@ -145,16 +146,37 @@ void recieveFromEthernet(){
 			}
 			return;
 		}
+		else if(recv_buffer[14] == 0x04){
+			if(recv_buffer[15] == 0x00){
+				xil_printf("\r\nAnswer is correct");
+			}
+			else if(recv_buffer[15] == 0x01){
+				xil_printf("\r\nAnswer is too long");
+			}
+			else if(recv_buffer[15] == 0x02){
+				xil_printf("\r\nAnswer is too short");
+			}
+		}
 	}
 }
 void recieveFromHardware(){
 	int numberOfPointsToReceive, i, received;
 	getfslx(numberOfPointsToReceive, 0, FSL_DEFAULT);
 	xil_printf("\r\n%x",numberOfPointsToReceive);
-	for (i = 0; i < numberOfPointsToReceive; i++){
-		getfslx(received, 0, FSL_DEFAULT);
-		xil_printf("\r\n%x",received);
+	tmit_buffer[14] = 0x03;
+	tmit_buffer[15] = worldSize;
+	for(i = 0; i < 4; i++){
+		tmit_buffer[16 + i] = worldID >> 8*(3-i);
 	}
+	tmit_buffer[20] = 0x00;
+	for(i = 0; i < 4; i++){
+		tmit_buffer[21 + i] = numberOfPointsToReceive >> 8*(3-i);
+	}
+	sendToEthernet(11);
+	//	for (i = 0; i < numberOfPointsToReceive; i++){
+	//		getfslx(received, 0, FSL_DEFAULT);
+	//		xil_printf("\r\n%x",received);
+	//	}
 }
 
 void drawWorld(){
@@ -173,7 +195,7 @@ void drawWorld(){
 		drawRectInGrid(waypoints[i][0],waypoints[i][1],gridSize,gridSize,GREEN);
 	}
 	for(i = 0; i < numberOfWalls; i++){
-//		xil_printf("\r\nWall Direction: %d",walls[i][2]);
+		//		xil_printf("\r\nWall Direction: %d",walls[i][2]);
 		if (walls[i][2] == 0){
 			drawRectInGrid(walls[i][0],walls[i][1],walls[i][3] * gridSize,gridSize,BLUE);
 		}
