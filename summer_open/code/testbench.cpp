@@ -1,10 +1,10 @@
 #include "toplevel.h"
 
 int main() {
-	hls::stream<uint32> to_hw, from_hw;
+	hls::stream<uint32> to_hw, from_hw; // Define the streams that are stand-ins for FPGA AXI busses
 
-	//Create input data
-	int6 worldSize = 10;
+	// Create  example input data
+	uint6 worldSize = 10;
 	int numberofWalls = 6;
 	int numberOfWaypoints = 4;
 	int distanceMatrix[12][12];
@@ -25,7 +25,7 @@ int main() {
 			{3, 8, 1, 1},
 	};
 
-	//	Write input data
+	//	Write input data to the hardware
 	to_hw.write(worldSize);
 	to_hw.write(numberOfWaypoints);
 

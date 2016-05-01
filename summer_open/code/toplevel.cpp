@@ -166,26 +166,32 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 }
 
 uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint){
-	// Reset the costs and list memberships for all the nodes in the world
+	// Function to complete the A* algorithm between two given waypoints
+	// Populates the storageGrid structure with the parent and cost of each node inspected
+
 	for(int i =0; i < 60; i++){
+		// For each node in storageGrid, reset the cost and list memberships
 		for(int j =0; j < 60; j++){
 			storageGrid[i][j].cost = 0;
 			storageGrid[i][j].listMembership = 0;
 		}
 	}
-	storageGrid[startWaypoint.X][startWaypoint.Y].listMembership = 1;
 
-	bool openListEmpty = 0;
+	storageGrid[startWaypoint.X][startWaypoint.Y].listMembership = 1; // Add the initial cost to the starting node
+
+	bool openListEmpty = 0; // Storage boolean to detect if the openList is ever empty
 	mainAStarLoop: while(openListEmpty == 0){
-		uint12 lowestCost = 3600;
-		Coordinate position;
-		openListEmpty = 1;
+		// While we still have nodes in the open list to inspect
+		uint12 lowestCost = 3600; // Initialise the lowest cost to a high value, such that any route valid route found will be lower
+		Coordinate position; // Store the current node in the world we are inspecting
+		openListEmpty = 1; // Store that the openList is empty, to be updated if we find a node in the openList
 		for(int x = 0; x < worldSize; x++){
+			// Inspect every node in the world to find the lowest cost node in the open list
 			for(int y = 0; y < worldSize; y++){
-				if(storageGrid[x][y].listMembership == 1){
-					openListEmpty = 0;
-					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y ,destinationWaypoint.X, destinationWaypoint.Y);
-					if(currentNodeCost < lowestCost){
+				if(storageGrid[x][y].listMembership == 1){ // If the node is in the open list
+					openListEmpty = 0; // We have found a node in the open list, so it is not empty
+					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y ,destinationWaypoint.X, destinationWaypoint.Y); // Read the cost of the current node
+					if(currentNodeCost < lowestCost){ // If we have found the new lowest cost node in the open list update the lowest cost position and the lowest cost
 						position.X = x;
 						position.Y = y;
 						lowestCost = currentNodeCost;
@@ -193,28 +199,30 @@ uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint){
 				}
 			}
 		}
-		storageGrid[position.X][position.Y].listMembership = 2;
-		if(position.X == destinationWaypoint.X && position.Y == destinationWaypoint.Y){
-			return lowestCost;
+		storageGrid[position.X][position.Y].listMembership = 2; // Move the found node to the closed list
+		if(position.X == destinationWaypoint.X && position.Y == destinationWaypoint.Y){ // If this is the destination waypoint then A* is complete
+			return lowestCost; // Return the lowest cost found for storage in the distance matrix
 		}
-		checkAndUpdateNode(position.X, position.Y +1, storageGrid[position.X][position.Y].cost, NORTH); // SOUTH
-		checkAndUpdateNode(position.X + 1, position.Y, storageGrid[position.X][position.Y].cost, WEST); // EAST
-		checkAndUpdateNode(position.X - 1, position.Y, storageGrid[position.X][position.Y].cost, EAST); // WEST
-		checkAndUpdateNode(position.X, position.Y -1, storageGrid[position.X][position.Y].cost, SOUTH); // NORTH
+		// Update each of the immediate neighbours of the current node
+		checkAndUpdateNode(position.X, position.Y +1, storageGrid[position.X][position.Y].cost, NORTH); // SOUTH neighbour
+		checkAndUpdateNode(position.X + 1, position.Y, storageGrid[position.X][position.Y].cost, WEST); // EAST neighbour
+		checkAndUpdateNode(position.X - 1, position.Y, storageGrid[position.X][position.Y].cost, EAST); // WEST neighbour
+		checkAndUpdateNode(position.X, position.Y -1, storageGrid[position.X][position.Y].cost, SOUTH); // NORTH neighbour
 	}
 }
 
 void checkAndUpdateNode(uint8 X, uint8 Y, uint12 cost, Direction parentDirection){
-	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){
-		if(storageGrid[X][Y].listMembership != 2){
-			if(storageGrid[X][Y].listMembership != 1){
-				storageGrid[X][Y].listMembership = 1;
-				storageGrid[X][Y].cost = cost + 1;
-				storageGrid[X][Y].parentDirection = parentDirection;
+	// Function to update the neighbourhood nodes of a node inspected in the A* algorithm
+	if(!storageGrid[X][Y].isWall && X >= 0 && Y>=0 && X < worldSize && Y < worldSize){ // Ensure the node being inspected is still within the world grid
+		if(storageGrid[X][Y].listMembership != 2){ // Ensure the node is not already in the closed list
+			if(storageGrid[X][Y].listMembership != 1){ // If the node has not been visited before
+				storageGrid[X][Y].listMembership = 1; // Add the node to the open list
+				storageGrid[X][Y].cost = cost + 1; // Update the cost of the node to the cost of its parent plus one
+				storageGrid[X][Y].parentDirection = parentDirection; // Store the direction of its parent, for use in re-constructing the route
 			}
-			else if(storageGrid[X][Y].cost > cost + 1){
-				storageGrid[X][Y].cost = cost + 1;
-				storageGrid[X][Y].parentDirection = parentDirection;
+			else if(storageGrid[X][Y].cost > cost + 1){ // If the node is in the open list but has a higher cost than we currently have
+				storageGrid[X][Y].cost = cost + 1; // Update its cost to the new, lower cost
+				storageGrid[X][Y].parentDirection = parentDirection; // Store the direction of its parent, for use in re-constructing the route
 			}
 		}
 	}

@@ -22,6 +22,12 @@ struct Wall{
 	uint6 length; // Length of the wall, in grid units
 };
 
+// Define datastructure for storing various positions, such as waypoints and nodes in the A* world grid
+struct Coordinate{
+	uint8 X;
+	uint8 Y;
+};
+
 // Define an enum for east reading of directions in the code
 enum Direction
 {
