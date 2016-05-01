@@ -20,6 +20,8 @@ uint12 manhattanDistance(uint8 X1, uint8 Y1, uint8 X2, uint8 Y2){
 }
 
 void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
+#pragma HLS ARRAY_MAP variable=waypoints instance=bram1 horizontal
+#pragma HLS ARRAY_MAP variable=distanceMatrix instance=bram1 horizontal
 	// Main function of the hardware segment of the code
 
 	// Define the AXI streams to communicate with MicroBlaze
@@ -49,12 +51,12 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 		wall.length = (uint8) receiveBuffer;
 
 		if(wall.direction == 0){ // If the wall is horizontal
-			for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the X direction
+			wallReadStorageLoop1: for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the X direction
 				storageGrid[wall.X + i][wall.Y].isWall = 1;
 			}
 		}
 		else{ // If the wall is vertical
-			for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the Y direction
+			wallReadStorageLoop2: for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the Y direction
 				storageGrid[wall.X][wall.Y + i].isWall = 1;
 			}
 		}
@@ -84,10 +86,12 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	// Permutation algorithm adapted from http://www.quickperm.org/
 	// [P.  Fuchs, "Permutation Algorithms Using Iteration and the Base-N-Odometer Model (Without Recursion)", Quickperm.org, 2016. [Online]. Available: http://www.quickperm.org/. [Accessed: 01- May- 2016]]
 
-	uint6 waypointsToPermute[MAX_NUMBER_OF_WAYPOINTS - 1]; // Array to store the waypoints to permute
+	uint6 waypointsToPermute[MAX_NUMBER_OF_WAYPOINTS - 1];
+#pragma HLS ARRAY_MAP variable=waypointsToPermute instance=bram1 horizontal
+ // Array to store the waypoints to permute
 	int N = numberOfWaypoints -1; // Controls the number of permutations, 1 less than the number of waypoints as we do not permute the starting ndoe (it is static in the route)
 	uint6 p[MAX_NUMBER_OF_WAYPOINTS]; // Array that controls the permutations
-	for(int i = 0; i < N; i++){ // Populate the control arrays
+	permutationPopulationLoop: for(int i = 0; i < N; i++){ // Populate the control arrays
 		waypointsToPermute[i] = i + 1;
 		p[i] = i;
 	}
@@ -95,7 +99,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	int i = 1;
 	int j, temp;
 	uint12 currentRouteCost;
-	while(i < N){
+	permutationMainLoop: while(i < N){
 		p[i]--; // Reduce the number of iterations required for this position
 		j = i % 2 * p[i]; // Calculate the positions to be swapped
 
@@ -106,7 +110,7 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 
 		// Calculate the cost of the route in the current permutation
 		currentRouteCost = distanceMatrix[0][waypointsToPermute[0]]; // Cost between the starting node and the first node in the permutation
-		for(int x = 0; x < numberOfWaypoints -2; x++){ // Cost between the nodes in the permutation
+		calculateCostLoop: for(int x = 0; x < numberOfWaypoints -2; x++){ // Cost between the nodes in the permutation
 			currentRouteCost += distanceMatrix[waypointsToPermute[x]][waypointsToPermute[x+1]];
 		}
 		currentRouteCost += distanceMatrix[waypointsToPermute[numberOfWaypoints -2]][0]; // Cost between the final node in the permutation back to the start node
@@ -116,13 +120,13 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 			// Cost of the current route is the current global minimum so we store this route for further comparison
 			lowestCost = currentRouteCost; // Update the current lowest cost found
 			bestRoute[0] = 0; // Set the first node in the route to be the start node
-			for(int x = 0; x < numberOfWaypoints; x++){ // Update the best route with the positions in this permutation
+			generateBestCostLoop: for(int x = 0; x < numberOfWaypoints; x++){ // Update the best route with the positions in this permutation
 				bestRoute[x + 1] = waypointsToPermute[x];
 			}
 			bestRoute[numberOfWaypoints] = 0; // Set the last node in the route to be the start node to complete the cycle
 		}
 		i = 1;
-		while(!p[i]){ // Update the iteration counter to ensure proper number of permutations are generated
+		permutationUpdateLoop: while(!p[i]){ // Update the iteration counter to ensure proper number of permutations are generated
 			p[i] = i;
 			i++;
 		}
@@ -133,14 +137,14 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	int tempPosition;
 
 	output.write(lowestCost); // Send the cost of the route to the Microblaze so the software knows how many points on the route are to be received
-	for(int x = 0; x < numberOfWaypoints; x++){
+	finalRouteLoop: for(int x = 0; x < numberOfWaypoints; x++){
 		// For every pair of waypoints next too each other in the best route we need to re-run A* to find the best route between them so we can send that to software
 		aStarSearch(waypoints[bestRoute[x]],waypoints[bestRoute[x+1]]); // Run A* between the two waypoints to update storageGrid with node parents
 		// A* starts at the destination waypoint and returns to the start waypoint, storing the parent nodes as it goes
 		// We can re-trace the route by following the parent routing through the grid until we find the start waypoint
 		position.X = waypoints[bestRoute[x+1]].X; // X coordinate of our current position
 		position.Y = waypoints[bestRoute[x+1]].Y; // Y coordinate of our current position
-		while(position.X != waypoints[bestRoute[x]].X || position.Y != waypoints[bestRoute[x]].Y){
+		finalRouteParentLoop: while(position.X != waypoints[bestRoute[x]].X || position.Y != waypoints[bestRoute[x]].Y){
 			// While we are not at the start waypoint
 			switch(storageGrid[position.X][position.Y].parentDirection){
 			// Read the direction of the current nodes parent and update our current position accordingly
@@ -169,9 +173,9 @@ uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint){
 	// Function to complete the A* algorithm between two given waypoints
 	// Populates the storageGrid structure with the parent and cost of each node inspected
 
-	for(int i =0; i < 60; i++){
+	aStarClearLoopOuter: for(int i =0; i < 60; i++){
 		// For each node in storageGrid, reset the cost and list memberships
-		for(int j =0; j < 60; j++){
+		aStarClearLoopInner: for(int j =0; j < 60; j++){
 			storageGrid[i][j].cost = 0;
 			storageGrid[i][j].listMembership = 0;
 		}
@@ -185,9 +189,9 @@ uint12 aStarSearch(Coordinate startWaypoint, Coordinate destinationWaypoint){
 		uint12 lowestCost = 3600; // Initialise the lowest cost to a high value, such that any route valid route found will be lower
 		Coordinate position; // Store the current node in the world we are inspecting
 		openListEmpty = 1; // Store that the openList is empty, to be updated if we find a node in the openList
-		for(int x = 0; x < worldSize; x++){
+		aStarSearchLoopOuter: for(int x = 0; x < worldSize; x++){
 			// Inspect every node in the world to find the lowest cost node in the open list
-			for(int y = 0; y < worldSize; y++){
+			aStarSearchLoopInner: for(int y = 0; y < worldSize; y++){
 				if(storageGrid[x][y].listMembership == 1){ // If the node is in the open list
 					openListEmpty = 0; // We have found a node in the open list, so it is not empty
 					uint12 currentNodeCost = storageGrid[x][y].cost + manhattanDistance(x, y ,destinationWaypoint.X, destinationWaypoint.Y); // Read the cost of the current node
