@@ -45,7 +45,7 @@ int main() {
 	xil_printf("\r\n%s", "Please input the desired world size:");
 	receiveWorldInfo(); // Receive the world information from the user via UART
 	receiveFromEthernet();
-	drawGrid();
+
 	receiveFromHardware();
 	receiveFromEthernet();
 
@@ -121,11 +121,17 @@ void receiveFromEthernet(){
 		if (recv_buffer[14] == 0x02){ // If the packet received is of the 'ReplyWorld' type
 			worldWidth = recv_buffer[19];  // Store the world width from the packet
 			worldHeight = recv_buffer[20]; // Store the world height from the packet
+			drawGrid();
 			putfslx(worldHeight, 0, FSL_DEFAULT); // Send the world grid size to the hardware component (worlds are square)
 			numberOfWaypoints = recv_buffer[21]; // Store the number of waypoints from the packet
 			putfslx(numberOfWaypoints, 0, FSL_DEFAULT); // Send the number of waypoints to the hardware
 			for (i = 0; i < numberOfWaypoints * 2; i = i +2){ // For each of the waypoints, draw it on VGA and send it to the hardware
-				drawRectInGrid(recv_buffer[22 + i],recv_buffer[22 + i + 1],gridSize,gridSize,GREEN); // Draw the waypoint on the screen
+				if(i == 0){
+					drawRectInGrid(recv_buffer[22 + i],recv_buffer[22 + i + 1],gridSize,gridSize,YELLOW); // Draw the first waypoint on the screen
+				}
+				else{
+					drawRectInGrid(recv_buffer[22 + i],recv_buffer[22 + i + 1],gridSize,gridSize,GREEN); // Draw the waypoint on the screen
+				}
 				putfslx(recv_buffer[22 + i] << 8 | recv_buffer[22 + i + 1], 0, FSL_DEFAULT); // Send the waypoint to the hardware
 			}
 			int numberOfWallsLocation;
@@ -174,7 +180,7 @@ void receiveFromHardware(){
 	sendToEthernet(11); // Send the transmit buffer to the server via ethernet
 	for (i = 0; i < numberOfPointsToReceive; i++){ // For each of the points in the solution route, print it to the VGA
 		getfslx(received, 0, FSL_DEFAULT); // Get the point to be printed
-		drawRectInGrid(received >> 8,received,gridSize,gridSize,GREEN); // Display to the VGA
+		drawWaypointInGrid(received >> 8, received & 0xFF, gridSize/2, gridSize/2,RED); // Display to the VGA
 	}
 }
 
@@ -207,6 +213,19 @@ void drawRectInGrid(int xLoc, int yLoc, int width, int height, u8 colour) {
 	int x, y;
 	yLoc*=gridSize;
 	xLoc*=gridSize;
+	for (y = yLoc; y < yLoc + height; y++) {
+		for (x = xLoc; x < xLoc + width; x++) {
+			*((volatile u8 *) FRAME_BUFFER + x + (800 * y)) = colour;
+		}
+	}
+}
+void drawWaypointInGrid(int xLoc, int yLoc, int width, int height, u8 colour) {
+	// Draws a rectangle of solid colour on the screen with correct grid offsets
+	int x, y;
+	yLoc*=gridSize;
+	xLoc*=gridSize;
+	yLoc += gridSize / 4;
+	xLoc += gridSize / 4;
 	for (y = yLoc; y < yLoc + height; y++) {
 		for (x = xLoc; x < xLoc + width; x++) {
 			*((volatile u8 *) FRAME_BUFFER + x + (800 * y)) = colour;
