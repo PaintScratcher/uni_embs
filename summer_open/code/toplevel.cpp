@@ -29,6 +29,28 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 	#pragma HLS RESOURCE variable=output core=AXI4Stream
 	#pragma HLS INTERFACE ap_ctrl_none port=return
 
+	// Clear all datastructures for repeated use
+
+	worldSize = 0;
+	numberOfWalls = 0;
+	numberOfWaypoints = 0;
+	receiveBuffer = 0;
+	for(int i = 0; i < MAX_NUMBER_OF_WAYPOINTS; i++){
+		waypoints[i].X = 0;
+		waypoints[i].Y = 0;
+		for(int j=0; j < MAX_NUMBER_OF_WAYPOINTS; j++){
+			distanceMatrix[i][j] = 0;
+			distanceMatrix[j][i] = 0;
+		}
+	}
+	storageGridClearLoop: for(int i = 0; i < 60; i++){
+		// For each node in storageGrid, reset the cost and list memberships
+		storageGridClearLoopInner: for(int j =0; j < 60; j++){
+			storageGrid[i][j].cost = 0;
+			storageGrid[i][j].isWall = 0;
+			storageGrid[i][j].listMembership = 0;
+		}
+	}
 	// ***Read in the data from the MicroBlaze via an AXI stream***
 	worldSize = input.read(); // Read the grid size of the current world being solved
 
