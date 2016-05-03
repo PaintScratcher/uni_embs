@@ -44,12 +44,25 @@ int main() {
 	XEmacLite_FlushReceive(&ether); //Clear any received messages
 
 	xil_printf("\r\n%s", "Please input the desired world size:");
-	receiveWorldInfo(); // Receive the world information from the user via UART
+//	receiveWorldInfo(); // Receive the world information from the user via UART
+	int worldLoop, i;
+	worldSize = 0;
+	for(worldLoop = 0; worldLoop < 99999; worldLoop++){
+		XEmacLite_FlushReceive(&ether); //Clear any received messages
+
+		tmit_buffer[14] = 0x01; // Set the type field
+		tmit_buffer[15] = worldSize; // Add the world size to the transmit buffer
+		worldID = worldLoop;
+		for(i = 0; i < 4; i++){ // Add the world ID to the transmit, as it is over several bytes we need to loop through and bit shift
+			tmit_buffer[16 + i] = worldLoop >> 8*(3-i);
+		}
+		sendToEthernet(6); // Send the generated buffer to the server via ethernet
+
 	receiveFromEthernet();
 
 	receiveFromHardware();
 	receiveFromEthernet();
-
+	}
 	return 0;
 }
 
@@ -168,7 +181,7 @@ void receiveFromHardware(){
 	// Function to handle receiving a response from the hardware component and ask the server if the solution is correct via ethernet
 	int numberOfPointsToReceive, i, received;
 	getfslx(numberOfPointsToReceive, 0, FSL_DEFAULT); // Get the number of points there are in the solution
-	xil_printf("\r\n%x",numberOfPointsToReceive);
+	xil_printf("\r\n%x WorldID%d",numberOfPointsToReceive, worldID);
 	tmit_buffer[14] = 0x03; // Set the type field of the packet to 'SolveWorld'
 	tmit_buffer[15] = worldSize; // Set the size of the world
 	for(i = 0; i < 4; i++){ // For each byte in the worldID, add it to the transmit buffer
