@@ -74,11 +74,13 @@ void toplevel(hls::stream<uint32> &input, hls::stream<uint32> &output) {
 
 		if(wall.direction == 0){ // If the wall is horizontal
 			wallReadStorageLoop1: for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the X direction
+				if (wall.X + i == worldSize)break;
 				storageGrid[wall.X + i][wall.Y].isWall = 1;
 			}
 		}
 		else{ // If the wall is vertical
 			wallReadStorageLoop2: for(int i = 0; i < wall.length; i++){ // Store its position in the world grid for its length in the Y direction
+				if (wall.Y + i == worldSize)break;
 				storageGrid[wall.X][wall.Y + i].isWall = 1;
 			}
 		}
